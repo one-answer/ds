@@ -30,10 +30,10 @@ exchange = ccxt.okx({
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
     'symbol': 'BTC/USDT:USDT',  # OKX的合约符号格式
-    'amount': 0.01,  # 交易数量 (BTC)
-    'leverage': 10,  # 杠杆倍数
-    'timeframe': '15m',  # 使用15分钟K线
-    'test_mode': False,  # 测试模式
+    'amount': 0.0000001,  # 交易数量 (BTC)
+    'leverage': 2,  # 杠杆倍数
+    'timeframe': '1m',  # 使用15分钟K线
+    'test_mode': True,  # 测试模式
     'data_points': 96,  # 24小时数据（96根15分钟K线）
     'analysis_periods': {
         'short_term': 20,  # 短期均线
@@ -661,6 +661,9 @@ def main():
     elif TRADE_CONFIG['timeframe'] == '15m':
         schedule.every(15).minutes.do(trading_bot)
         print("执行频率: 每15分钟一次")
+    elif TRADE_CONFIG['timeframe'] == '1m':
+        schedule.every(1).minutes.do(trading_bot)
+        print("执行频率: 每1分钟一次")
     else:
         schedule.every().hour.at(":01").do(trading_bot)
         print("执行频率: 每小时一次")

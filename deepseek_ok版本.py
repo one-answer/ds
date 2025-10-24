@@ -29,10 +29,10 @@ exchange = ccxt.okx({
 # 交易参数配置
 TRADE_CONFIG = {
     'symbol': 'BTC/USDT:USDT',  # OKX的合约符号格式
-    'amount': 0.01,  # 交易数量 (BTC)
+    'amount': 0.0000001,  # 交易数量 (BTC)
     'leverage': 10,  # 杠杆倍数
-    'timeframe': '15m',  # 使用15分钟K线
-    'test_mode': False,  # 测试模式
+    'timeframe': '1m',  # 使用15分钟K线
+    'test_mode': True,  # 测试模式
 }
 
 # 全局变量存储历史数据
@@ -53,10 +53,10 @@ def setup_exchange():
         print(f"设置杠杆倍数: {TRADE_CONFIG['leverage']}x")
 
         # 获取余额
+
         balance = exchange.fetch_balance()
         usdt_balance = balance['USDT']['free']
         print(f"当前USDT余额: {usdt_balance:.2f}")
-
         # # 设置持仓模式 (双向持仓)
         # exchange.set_position_mode(False, TRADE_CONFIG['symbol'])
         # print("设置单向持仓")
@@ -368,6 +368,9 @@ def main():
     elif TRADE_CONFIG['timeframe'] == '15m':
         schedule.every(15).minutes.do(trading_bot)
         print("执行频率: 每15分钟一次")
+    elif TRADE_CONFIG['timeframe'] == '1m':
+        schedule.every(1).minutes.do(trading_bot)
+        print("执行频率: 每1分钟一次")
     else:
         schedule.every().hour.at(":01").do(trading_bot)
         print("执行频率: 每小时一次")
