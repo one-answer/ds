@@ -30,9 +30,9 @@ exchange = ccxt.okx({
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
     'symbol': 'BTC/USDT:USDT',  # OKX的合约符号格式
-    'amount': 0.1,  # 交易数量 (BTC)
+    'amount': 1,  # 交易数量 (BTC)
     'leverage': 2,  # 杠杆倍数
-    'timeframe': '1m',  # 使用15分钟K线
+    'timeframe': '15m',  # 使用15分钟K线
     'test_mode': False,  # 测试模式
     'data_points': 96,  # 24小时数据（96根15分钟K线）
     'analysis_periods': {
