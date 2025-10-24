@@ -59,3 +59,13 @@
 ### npm install pm2 -g 使用npm安装pm2
 
 ### conda create -n trail3 python=4.10
+
+### .env.example
+
+```aiignore
+DEEPSEEK_API_KEY =
+OKX_API_KEY =
+OKX_SECRET =
+OKX_PASSWORD =
+
+```
