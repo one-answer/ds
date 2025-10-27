@@ -1,1 +1,2 @@
+conda activate ds
 nohup env PYTHONUNBUFFERED=1 python deepseek_ok_plus.py > ./app.log 2>&1 &
