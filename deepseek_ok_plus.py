@@ -622,7 +622,7 @@ def trading_bot():
     if not price_data:
         return
 
-    print(f"BTC当前价格: ${price_data['price']:,.2f}")
+    print(f"DOGE当前价格: ${price_data['price']:,.2f}")
     print(f"数据周期: {TRADE_CONFIG['timeframe']}")
     print(f"价格变化: {price_data['price_change']:+.2f}%")
 
