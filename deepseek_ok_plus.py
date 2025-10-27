@@ -30,7 +30,7 @@ exchange = ccxt.okx({
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
     'symbol': 'DOGE/USDT:USDT',  # OKX的合约符号格式
-    'amount': 1,  # 交易数量 (BTC)
+    'amount': 1,  # 交易数量 (doge)
     'leverage': 5,  # 杠杆倍数
     'timeframe': '15m',  # 使用15分钟K线
     'test_mode': False,  # 测试模式
@@ -176,7 +176,7 @@ def get_market_trend(df):
 
 
 def get_btc_ohlcv_enhanced():
-    """增强版：获取BTC K线数据并计算技术指标"""
+    """增强版：获取DOGE K线数据并计算技术指标"""
     try:
         # 获取K线数据
         ohlcv = exchange.fetch_ohlcv(TRADE_CONFIG['symbol'], TRADE_CONFIG['timeframe'],
@@ -348,7 +348,7 @@ def analyze_with_deepseek(price_data):
     position_text = "无持仓" if not current_pos else f"{current_pos['side']}仓, 数量: {current_pos['size']}, 盈亏: {current_pos['unrealized_pnl']:.5f}USDT"
 
     prompt = f"""
-    你是一个专业的加密货币交易分析师。请基于以下BTC/USDT {TRADE_CONFIG['timeframe']}周期数据进行分析：
+    你是一个专业的加密货币交易分析师。请基于以下DOGE/USDT {TRADE_CONFIG['timeframe']}周期数据进行分析：
 
     {kline_text}
 
@@ -361,7 +361,7 @@ def analyze_with_deepseek(price_data):
     - 时间: {price_data['timestamp']}
     - 本K线最高: ${price_data['high']:,.5f}
     - 本K线最低: ${price_data['low']:,.5f}
-    - 本K线成交量: {price_data['volume']:.5f} BTC
+    - 本K线成交量: {price_data['volume']:.5f} DOGE
     - 价格变化: {price_data['price_change']:+.5f}%
     - 当前持仓: {position_text}
 
@@ -638,7 +638,7 @@ def trading_bot():
 
 def main():
     """主函数"""
-    print("BTC/USDT OKX自动交易机器人启动成功！")
+    print("DOGE/USDT OKX自动交易机器人启动成功！")
     print("融合技术指标策略 + OKX实盘接口")
 
     if TRADE_CONFIG['test_mode']:
