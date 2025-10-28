@@ -569,7 +569,14 @@ def execute_trade(signal_data, price_data):
                     params={'tag': 'f1ee03b510d5SUDE'}
                 )
             elif current_position and current_position['side'] == 'short':
-                print("已有空头持仓，保持现状")
+                # 平空仓
+                exchange.create_market_order(
+                    TRADE_CONFIG['symbol'],
+                    'buy',
+                    current_position['size'],
+                    params={'reduceOnly': True, 'tag': 'f1ee03b510d5SUDE'}
+                )
+                print("空头持仓已平仓")
             else:
                 # 无持仓时开空仓
                 print("开空仓...")
