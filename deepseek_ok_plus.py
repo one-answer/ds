@@ -30,7 +30,7 @@ exchange = ccxt.okx({
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
     'symbol': 'DOGE/USDT:USDT',  # OKX的合约符号格式
-    'amount': 1,  # 交易数量 (doge)
+    'amount': 2,  # 交易数量 (doge)
     'leverage': 5,  # 杠杆倍数
     'timeframe': '15m',  # 使用15分钟K线
     'test_mode': False,  # 测试模式
@@ -569,7 +569,14 @@ def execute_trade(signal_data, price_data):
                     params={'tag': 'f1ee03b510d5SUDE'}
                 )
             elif current_position and current_position['side'] == 'short':
-                print("已有空头持仓，保持现状")
+                # 平空仓
+                exchange.create_market_order(
+                    TRADE_CONFIG['symbol'],
+                    'buy',
+                    current_position['size'],
+                    params={'reduceOnly': True, 'tag': 'f1ee03b510d5SUDE'}
+                )
+                print("空头持仓已平仓")
             else:
                 # 无持仓时开空仓
                 print("开空仓...")
