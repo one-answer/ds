@@ -593,7 +593,16 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'sell',
                     TRADE_CONFIG['amount'],
-                    params={'tag': 'f1ee03b510d5SUDE'}
+                    params={'tag': 'f1ee03b510d5SUDE','takeProfit': {      # 止盈设置（价格下跌时触发）
+                        'triggerPrice': signal_data['take_profit'],  # 触发价（低于开仓价）
+                        'price': signal_data['take_profit'],
+                        'reduceOnly': True            # 仅平仓
+                            },
+                        'stopLoss': {        # 止损设置（价格上涨时触发）
+                         'triggerPrice': signal_data['stop_loss'],    # 触发价（高于开仓价）
+                        'price': signal_data['stop_loss'],
+                        'reduceOnly': True
+                         }}
                 )
 
         print("订单执行成功")
