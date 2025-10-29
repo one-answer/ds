@@ -547,7 +547,16 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'buy',
                     TRADE_CONFIG['amount'],
-                    params={'tag': 'f1ee03b510d5SUDE'}
+                    params={'tag': 'f1ee03b510d5SUDE', 'takeProfit': {
+                        'triggerPrice': signal_data['take_profit'],
+                        'price': signal_data['take_profit'],
+                        'reduceOnly': True
+                    },
+                    'stopLoss': {
+                        'triggerPrice': signal_data['stop_loss'],
+                        'price': signal_data['stop_loss'],
+                        'reduceOnly': True
+                        }}
                 )
 
         elif signal_data['signal'] == 'SELL':
