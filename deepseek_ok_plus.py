@@ -30,7 +30,7 @@ exchange = ccxt.okx({
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
     'symbol': 'DOGE/USDT:USDT',  # OKX的合约符号格式
-    'amount': 2,  # 交易数量 (doge)
+    'amount': 3,  # 交易数量 (doge)
     'leverage': 5,  # 杠杆倍数
     'timeframe': '15m',  # 使用15分钟K线
     'test_mode': False,  # 测试模式
