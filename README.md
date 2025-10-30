@@ -4,61 +4,87 @@
 - 本项目基于 `deepseek` 接口与 `OKX` 交易 API，提供自动下单脚本（单向持仓模式）。
 - 目录：`ds/`，包含主要脚本与运行脚本。
 
-## 目录结构（主要文件）
+## 当前目录（主要文件）
 - `deepseek_ok_plus.py` — 核心逻辑（通用）
-- `deepseek_ok_plus_trx.py` — TRX 专用逻辑
 - `deepseek_ok_plus_xrp.py` — XRP 专用逻辑
-- `run.sh`, `run_trx.sh`, `run_xrp.sh` — 启动脚本
+- `run_doge.sh` — DOGE/通用启动脚本（项目中以该脚本命名）
+- `run_xrp.sh` — XRP 专用启动脚本
 - `requirements.txt` — Python 依赖
-- `.env` — 配置文件（须新建）
+- `.env` — 配置文件（示例见下方，须在运行前新建）
+- `trading_logs.db` — 本地 SQLite 日志/记录（运行时生成/更新）
+
+> 说明：仓库中没有 `deepseek_ok_plus_trx.py` 或 `run_trx.sh`（如果需要 TRX 支持，请确认是否有对应分支或旧版脚本）。
 
 ## 要求
-- Python 3.10
+- Python 3.10（推荐）
 - pip
-- 推荐在 Ubuntu 服务器（香港/新加坡节点）运行
 
 ## 安装（本地或服务器）
 1. 克隆仓库到 `ds/` 目录
-2. 创建 Python 环境并激活（示例使用 conda）：
-   - `conda create -n ds python=3.10`
-   - `conda activate ds`
+2. 创建并激活 Python 环境（示例使用 venv 或 conda）：
+
+- 使用 venv（macOS / Linux）：
+
+```bash
+python3.10 -m venv .venv
+source .venv/bin/activate
+```
+
+- 或使用 conda：
+
+```bash
+conda create -n ds python=3.10
+conda activate ds
+```
+
 3. 安装依赖：
-   - `pip install -r requirements.txt`
 
-## 配置（` .env `）
-在项目根目录创建 `.env` 并填写 API 凭证：
+```bash
+pip install -r requirements.txt
+```
 
-    DEEPSEEK_API_KEY=
-    OKX_API_KEY=
-    OKX_SECRET=
-    OKX_PASSWORD=
+## 配置（`.env`）
+在项目根目录（`ds/`）创建 `.env` 并填写 API 凭证，例如：
 
-> 请保管好密钥，不要提交到版本控制。
+```
+DEEPSEEK_API_KEY=
+OKX_API_KEY=
+OKX_SECRET=
+OKX_PASSWORD=
+```
 
-## 使用
-- 启动通用脚本：  
-  `./run.sh`
-- 启动 TRX 专用：  
-  `./run_trx.sh`
-- 启动 XRP 专用：  
-  `./run_xrp.sh`
+请妥善保管密钥，不要提交到版本控制。项目根已包含 `.gitignore`，请确保 `.env` 被忽略。
 
-脚本会加载 `.env` 中的配置并执行相应策略。
+## 使用（运行脚本）
+- 启动通用 / DOGE 脚本：
 
-## 部署建议（Ubuntu / 推荐步骤）
-1. 安装 Anaconda（示例）：
-   - `wget https://repo.anaconda.com/archive/Anaconda3-2024.10-1-Linux-x86_64.sh`
-   - `bash Anaconda3-2024.10-1-Linux-x86_64.sh`
-   - `source /root/anaconda3/etc/profile.d/conda.sh`
-   - `echo ". /root/anaconda3/etc/profile.d/conda.sh" >> ~/.bashrc`
-2. 创建并激活环境（见上文）。
-3. 安装 pm2 并使用作守护进程（可选）：
-   - `apt install npm`
-   - `npm install pm2 -g`
-   - 例如：`pm2 start ./run.sh --name deepseek-okx`
+```bash
+./run_doge.sh
+```
+
+- 启动 XRP 专用脚本：
+
+```bash
+./run_xrp.sh
+```
+
+这些脚本会读取同目录下的 `.env` 配置并执行相应策略。若要在后台运行，可使用 `nohup` 或 `tmux`/`screen`，或者在生产服务器上用进程管理器（见下）。
+
+## 本地日志
+运行期间脚本会将交易/事件记录到 `trading_logs.db`（SQLite）。可用 SQLite 工具或脚本查看/导出日志。
+
+## 部署建议（可选）
+- 推荐在稳定的 Linux 服务器（例如 Ubuntu）上部署。生产环境可使用 `tmux`/`systemd`/`pm2` 或其他进程管理器保持脚本长期运行。
+- 常见流程：创建虚拟环境 → 安装依赖 → 配置 `.env` → 使用 `tmux` 或 `systemd` 启动脚本。
 
 ## 常见问题与排查
 - 无法连接 OKX：检查 `OKX_API_KEY` / `OKX_SECRET` / `OKX_PASSWORD` 是否正确并已开启 API 权限（交易/读取）。
-- 依赖安装失败：确认 Python 版本为 3.10 并升级 pip：`pip install --upgrade pip`
-- 日志定位：查看脚本输出或 `pm2 logs`（若使用 pm2）
+- 依赖安装失败：确认 Python 版本为 3.10，并升级 pip：
+
+```bash
+pip install --upgrade pip
+```
+
+- 日志定位：查看脚本输出或打开 `trading_logs.db`。
+
 
