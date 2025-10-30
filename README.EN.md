@@ -1,9 +1,7 @@
 <p style="text-align:left">
   <a href="./README.md"><img alt="中文" src="https://img.shields.io/badge/中文-CN-0b70d5.svg?style=flat-square"></a>
-  <a href="./README.EN.md"><img alt="English" src="https://img.shields.io/badge/English-EN-6c757d.svg?style=flat-square"></a>
 </p>
 
-> This is the English version — see Chinese: [README.md](./README.md)
 
 # DeepSeek + OKX Auto Trader
 

@@ -1,7 +1,6 @@
 <h1 id="chinese">DeepSeek + OKX Auto Trader</h1>
 
 <p style="text-align:right">
-  <a href="./README.md"><img alt="中文" src="https://img.shields.io/badge/中文-默认-0b70d5.svg?style=flat-square"></a>
   <a href="./README.EN.md"><img alt="English" src="https://img.shields.io/badge/English-EN-6c757d.svg?style=flat-square"></a>
 </p>
 
