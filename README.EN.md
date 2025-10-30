@@ -103,3 +103,9 @@ pip install --upgrade pip
 ## To-do / Suggested improvements
 - Add TRX-specific script if TRX support is needed.
 - Add unit tests, example `systemd` or `pm2` config, and instructions to export `trading_logs.db` data.
+
+This is the English version — see Chinese: README.md
+
+
+## Acknowledgements
+Thanks to the project: [huojichuanqi/ds](https://github.com/huojichuanqi/ds) — parts of this project were inspired by or reference that repository.

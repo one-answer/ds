@@ -4,6 +4,11 @@
   <a href="./README.EN.md"><img alt="English" src="https://img.shields.io/badge/English-EN-6c757d.svg?style=flat-square"></a>
 </p>
 
+<!-- English note: make the bilingual link more prominent -->
+<p style="text-align:right; margin-top:-1.2rem;">
+  <strong>This is the Chinese version — see English: <a href="./README.EN.md">README.EN.md</a></strong>
+</p>
+
 ---
 
 ## 简短说明
@@ -104,3 +109,6 @@ pip install --upgrade pip
 ---
 
 <!-- English content moved to README.EN.md -->
+
+## 致谢
+非常感谢并致谢项目： [huojichuanqi/ds](https://github.com/huojichuanqi/ds) — 本项目部分灵感或实现参考自该仓库。
