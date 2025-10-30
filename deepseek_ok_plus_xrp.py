@@ -30,7 +30,7 @@ exchange = ccxt.okx({
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
     'symbol': 'XRP/USDT:USDT',  # OKX的合约符号格式
-    'amount': 0.4,  # 交易数量 (XRP)
+    'amount': 4,  # 交易数量 (XRP)
     'leverage': 5,  # 杠杆倍数
     'timeframe': '15m',  # 使用15分钟K线
     'test_mode': False,  # 测试模式
