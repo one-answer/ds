@@ -71,3 +71,6 @@ Thumbs.db
 *.swp
 *.swo
 *.DS_Store
+
+#sqllite
+trading_logs.db

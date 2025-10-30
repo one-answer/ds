@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import re
 from dotenv import load_dotenv
+import sqlite3
 
 load_dotenv()
 
@@ -46,6 +47,106 @@ TRADE_CONFIG = {
 price_history = []
 signal_history = []
 position = None
+
+# SQLite database path
+DB_PATH = os.path.join(os.path.dirname(__file__), 'trading_logs.db')
+
+
+def init_db():
+    """Initialize the SQLite database and create table if not exists."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS trade_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT,
+                symbol TEXT,
+                timeframe TEXT,
+                price REAL,
+                price_change REAL,
+                deepseek_raw TEXT,
+                signal TEXT,
+                reason TEXT,
+                stop_loss REAL,
+                take_profit REAL,
+                confidence TEXT,
+                current_position TEXT,
+                operation_type TEXT,
+                required_margin REAL,
+                order_status TEXT,
+                updated_position TEXT,
+                extra TEXT
+            )
+        ''')
+        conn.commit()
+    except Exception as e:
+        print(f"初始化数据库失败: {e}")
+    finally:
+        # only close if conn was created
+        try:
+            if 'conn' in locals() and conn:
+                conn.close()
+        except Exception:
+            pass
+
+
+def save_trade_log(price_data=None, deepseek_raw=None, signal_data=None, current_position=None,
+                   operation_type=None, required_margin=None, order_status=None, updated_position=None, extra=None):
+    """Save a structured log row into SQLite."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+
+        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        symbol = TRADE_CONFIG.get('symbol')
+        timeframe = TRADE_CONFIG.get('timeframe')
+        price = float(price_data['price']) if price_data and 'price' in price_data else None
+        price_change = float(price_data['price_change']) if price_data and 'price_change' in price_data else None
+        deepseek_raw_txt = deepseek_raw if deepseek_raw else None
+
+        signal = signal_data.get('signal') if signal_data else None
+        reason = signal_data.get('reason') if signal_data else None
+        stop_loss = float(signal_data.get('stop_loss')) if signal_data and signal_data.get('stop_loss') is not None else None
+        take_profit = float(signal_data.get('take_profit')) if signal_data and signal_data.get('take_profit') is not None else None
+        confidence = signal_data.get('confidence') if signal_data else None
+
+        cur.execute('''
+            INSERT INTO trade_logs (
+                created_at, symbol, timeframe, price, price_change, deepseek_raw, signal, reason, stop_loss, take_profit, confidence,
+                current_position, operation_type, required_margin, order_status, updated_position, extra
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            created_at,
+            symbol,
+            timeframe,
+            price,
+            price_change,
+            deepseek_raw_txt,
+            signal,
+            reason,
+            stop_loss,
+            take_profit,
+            confidence,
+            json.dumps(current_position) if current_position is not None else None,
+            operation_type,
+            required_margin,
+            order_status,
+            json.dumps(updated_position) if updated_position is not None else None,
+            json.dumps(extra) if extra is not None else None
+        ))
+        conn.commit()
+    except Exception as e:
+        print(f"保存日志失败: {e}")
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
+
+
+# Global to store DeepSeek raw reply for logging
+deepseek_last_raw = None
 
 
 def setup_exchange():
@@ -405,6 +506,10 @@ def analyze_with_deepseek(price_data):
         result = response.choices[0].message.content
         print(f"DeepSeek原始回复: {result}")
 
+        # 保存原始回复到全局变量以便日志记录
+        global deepseek_last_raw
+        deepseek_last_raw = result
+
         # 提取JSON部分
         start_idx = result.find('{')
         end_idx = result.rfind('}') + 1
@@ -440,11 +545,25 @@ def analyze_with_deepseek(price_data):
             if len(set(last_three)) == 1:
                 print(f"⚠️ 注意：连续3次{signal_data['signal']}信号")
 
+        # 保存分析结果到数据库（生成信号的时刻）
+        try:
+            save_trade_log(price_data, deepseek_last_raw, signal_data, current_pos,
+                           operation_type='signal_generated', required_margin=None, order_status='generated', updated_position=None,
+                           extra={'signal_count': signal_count})
+        except Exception as e:
+            print(f"保存分析日志失败: {e}")
+
         return signal_data
 
     except Exception as e:
         print(f"DeepSeek分析失败: {e}")
-        return create_fallback_signal(price_data)
+        # 在异常/回退情况下也记录日志
+        fb = create_fallback_signal(price_data)
+        try:
+            save_trade_log(price_data, None, fb, None, operation_type='signal_fallback', order_status='fallback')
+        except Exception as le:
+            print(f"保存回退日志失败: {le}")
+        return fb
 
 
 def execute_trade(signal_data, price_data):
@@ -463,10 +582,16 @@ def execute_trade(signal_data, price_data):
     # 风险管理：低信心信号不执行
     if signal_data['confidence'] == 'LOW' and not TRADE_CONFIG['test_mode']:
         print("⚠️ 低信心信号，跳过执行")
+        save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, "skip", order_status="skipped")
         return
 
     if TRADE_CONFIG['test_mode']:
         print("测试模式 - 仅模拟交易")
+        # 记录测试模式下的日志
+        try:
+            save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type='test_mode', order_status='test')
+        except Exception as e:
+            print(f"保存测试模式日志失败: {e}")
         return
 
     try:
@@ -476,6 +601,7 @@ def execute_trade(signal_data, price_data):
 
         # 智能保证金检查
         required_margin = 0
+        operation_type = None
 
         if signal_data['signal'] == 'BUY':
             if current_position and current_position['side'] == 'short':
@@ -507,14 +633,22 @@ def execute_trade(signal_data, price_data):
 
         elif signal_data['signal'] == 'HOLD':
             print("建议观望，不执行交易")
+            save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type='hold', order_status='held')
             return
 
         print(f"操作类型: {operation_type}, 需要保证金: {required_margin:.5f} USDT")
+
+        # 记录执行前的快照日志
+        try:
+            save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type=operation_type, required_margin=required_margin, order_status='precheck')
+        except Exception as e:
+            print(f"保存执行前日志失败: {e}")
 
         # 只有在需要额外保证金时才检查
         if required_margin > 0:
             if required_margin > usdt_balance * 0.8:
                 print(f"⚠️ 保证金不足，跳过交易。需要: {required_margin:.5f} USDT, 可用: {usdt_balance:.5f} USDT")
+                save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, "skip", order_status="skipped")
                 return
         else:
             print("✅ 无需额外保证金，继续执行")
@@ -610,6 +744,9 @@ def execute_trade(signal_data, price_data):
         position = get_current_position()
         print(f"更新后持仓: {position}")
 
+        # 保存交易日志
+        save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type, required_margin, "success", position, extra={"order_id": "", "fee": 0})
+
     except Exception as e:
         print(f"订单执行失败: {e}")
         import traceback
@@ -678,6 +815,9 @@ def main():
     if not setup_exchange():
         print("交易所初始化失败，程序退出")
         return
+
+    # 初始化数据库
+    init_db()
 
     # 根据时间周期设置执行频率
     if TRADE_CONFIG['timeframe'] == '1h':
