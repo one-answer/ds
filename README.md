@@ -5,24 +5,17 @@
   <a href="./README.EN.md"><img alt="English" src="https://img.shields.io/badge/English-EN-6c757d.svg?style=flat-square"></a>
 </p>
 
-> This README is Chinese by default — see English: [README.EN.md](./README.EN.md)
-
-## 语言导航
-- 快速跳转：[中文](#chinese) • [English version](./README.EN.md)
-
 ---
 
 ## 简短说明
 - 本项目基于 `deepseek` 接口与 `OKX` 交易 API，提供自动下单脚本（单向持仓模式）。
 - 目录：`ds/`，包含主要脚本与运行脚本。
 
-## 快速参考（中 / EN 并列）
-| 中文 | English |
-|---|---|
-| 启动通用脚本：`./run_doge.sh` | Start general / DOGE: `./run_doge.sh` |
-| 启动 XRP 脚本：`./run_xrp.sh` | Start XRP script: `./run_xrp.sh` |
-| 配置：在项目根放置 `.env`（见下） | Config: place `.env` in project root (see below) |
-| 本地日志：`trading_logs.db`（SQLite） | Local logs: `trading_logs.db` (SQLite) |
+## 快速参考
+- 启动通用脚本：`./run_doge.sh`
+- 启动 XRP 脚本：`./run_xrp.sh`
+- 配置：在项目根放置 `.env`（见下）
+- 本地日志：`trading_logs.db`（SQLite）
 
 ---
 
