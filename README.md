@@ -1,8 +1,30 @@
-# DeepSeek + OKX Auto Trader
+<h1 id="chinese">DeepSeek + OKX Auto Trader</h1>
 
-简短说明
+<p style="text-align:right">
+  <a href="./README.md"><img alt="中文" src="https://img.shields.io/badge/中文-默认-0b70d5.svg?style=flat-square"></a>
+  <a href="./README.EN.md"><img alt="English" src="https://img.shields.io/badge/English-EN-6c757d.svg?style=flat-square"></a>
+</p>
+
+> This README is Chinese by default — see English: [README.EN.md](./README.EN.md)
+
+## 语言导航
+- 快速跳转：[中文](#chinese) • [English version](./README.EN.md)
+
+---
+
+## 简短说明
 - 本项目基于 `deepseek` 接口与 `OKX` 交易 API，提供自动下单脚本（单向持仓模式）。
 - 目录：`ds/`，包含主要脚本与运行脚本。
+
+## 快速参考（中 / EN 并列）
+| 中文 | English |
+|---|---|
+| 启动通用脚本：`./run_doge.sh` | Start general / DOGE: `./run_doge.sh` |
+| 启动 XRP 脚本：`./run_xrp.sh` | Start XRP script: `./run_xrp.sh` |
+| 配置：在项目根放置 `.env`（见下） | Config: place `.env` in project root (see below) |
+| 本地日志：`trading_logs.db`（SQLite） | Local logs: `trading_logs.db` (SQLite) |
+
+---
 
 ## 当前目录（主要文件）
 - `deepseek_ok_plus.py` — 核心逻辑（通用）
@@ -13,7 +35,7 @@
 - `.env` — 配置文件（示例见下方，须在运行前新建）
 - `trading_logs.db` — 本地 SQLite 日志/记录（运行时生成/更新）
 
-> 说明：仓库中没有 `deepseek_ok_plus_trx.py` 或 `run_trx.sh`（如果需要 TRX 支持，请确认是否有对应分支或旧版脚本）。
+> 注：仓库中没有 `deepseek_ok_plus_trx.py` 或 `run_trx.sh`（若需 TRX 支持请检查其他分支或旧版）。
 
 ## 要求
 - Python 3.10（推荐）
@@ -21,7 +43,7 @@
 
 ## 安装（本地或服务器）
 1. 克隆仓库到 `ds/` 目录
-2. 创建并激活 Python 环境（示例使用 venv 或 conda）：
+2. 创建并激活 Python 环境（示例使用 `venv` 或 `conda`）：
 
 - 使用 venv（macOS / Linux）：
 
@@ -68,7 +90,7 @@ OKX_PASSWORD=
 ./run_xrp.sh
 ```
 
-这些脚本会读取同目录下的 `.env` 配置并执行相应策略。若要在后台运行，可使用 `nohup` 或 `tmux`/`screen`，或者在生产服务器上用进程管理器（见下）。
+这些脚本会读取同目录下的 `.env` 配置并执行相应策略。若要在后台运行，可使用 `nohup` 或 `tmux`/`screen`，或者在生产服务器上用进程管理器（例如 `systemd`、`pm2` 等）。
 
 ## 本地日志
 运行期间脚本会将交易/事件记录到 `trading_logs.db`（SQLite）。可用 SQLite 工具或脚本查看/导出日志。
@@ -87,4 +109,6 @@ pip install --upgrade pip
 
 - 日志定位：查看脚本输出或打开 `trading_logs.db`。
 
+---
 
+<!-- English content moved to README.EN.md -->
