@@ -46,7 +46,39 @@ PIDS=$(pgrep -f "$SCRIPT_NAME" || true)
 
 if [ -n "$PIDS" ]; then
     echo "⚠️ Found running process(es): $PIDS - stopping..."
-    kill -9 $PIDS || true
+
+    for pid in $PIDS; do
+        # Skip this script's own PID, its parent, and bash internal PID if present
+        if [ "$pid" -eq $$ ] || { [ -n "$BASHPID" ] && [ "$pid" -eq "$BASHPID" ]; } || [ "$pid" -eq "$PPID" ]; then
+            echo "⚠️ Skipping PID $pid (self/parent)"
+            continue
+        fi
+
+        # Double-check the matched process actually contains the script name in its command line
+        cmd=$(ps -p "$pid" -o args= 2>/dev/null || true)
+        if [ -z "$cmd" ]; then
+            echo "⚠️ Could not read command for PID $pid - skipping"
+            continue
+        fi
+
+        if echo "$cmd" | grep -q -- "$SCRIPT_NAME"; then
+            echo "🧭 Sending TERM to $pid (cmd: $cmd)"
+            kill -TERM "$pid" 2>/dev/null || true
+        else
+            echo "⚠️ PID $pid command does not match script name (cmd: $cmd) - skipping"
+        fi
+    done
+
+    echo "⏳ Waiting for processes to exit..."
+    sleep 3
+
+    # Re-check remaining matching processes and force kill if needed
+    REMAINING=$(pgrep -f "$SCRIPT_NAME" || true)
+    if [ -n "$REMAINING" ]; then
+        echo "⚠️ Force killing remaining: $REMAINING"
+        kill -9 $REMAINING || true
+    fi
+
     echo "✅ Stopped old process(es)."
 else
     echo "✅ No old process found, starting new one."
@@ -59,4 +91,3 @@ nohup env PYTHONUNBUFFERED=1 python "$SCRIPT_NAME" > "$LOG_FILE" 2>&1 &
 NEW_PID=$!
 echo "✅ New process started (PID: $NEW_PID)"
 echo "📄 Log file: $LOG_FILE"
-
