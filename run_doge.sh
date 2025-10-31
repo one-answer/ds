@@ -8,5 +8,7 @@ LOG_FILE="./app_doge.log"
 ENV_NAME="ds"
 PYTHON_VERSION="3.10"
 
-# Call common runner
-bash /root/ds/run_common.sh" "$SCRIPT_NAME" "$LOG_FILE" "$ENV_NAME" "$PYTHON_VERSION"
+# Call common runner from the same directory as this wrapper
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+bash "$DIR/run_common.sh" "$SCRIPT_NAME" "$LOG_FILE" "$ENV_NAME" "$PYTHON_VERSION"
