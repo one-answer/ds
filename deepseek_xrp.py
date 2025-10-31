@@ -120,132 +120,38 @@ def create_fallback_signal(price_data):
 
 
 def analyze_with_deepseek(price_data):
-    """使用DeepSeek分析市场并生成交易信号（增强版）"""
+    """Thin wrapper that delegates analysis to common.analyze_with_deepseek and returns signal_data.
 
-    # 生成技术分析文本
-    technical_analysis = generate_technical_analysis_text(price_data)
-
-    # 构建K线数据文本
-    kline_text = f"【最近5根{TRADE_CONFIG['timeframe']}K线数据】\n"
-    for i, kline in enumerate(price_data['kline_data'][-5:]):
-        trend = "阳线" if kline['close'] > kline['open'] else "阴线"
-        change = ((kline['close'] - kline['open']) / kline['open']) * 100
-        kline_text += f"K线{i + 1}: {trend} 开盘:{kline['open']:.5f} 收盘:{kline['close']:.5f} 涨跌:{change:+.5f}%\n"
-
-    # 添加上次交易信号
-    signal_text = ""
-    if signal_history:
-        last_signal = signal_history[-1]
-        signal_text = f"\n【上次交易信号】\n信号: {last_signal.get('signal', 'N/A')}\n信心: {last_signal.get('confidence', 'N/A')}"
-
-    # 添加当前持仓信息
-    current_pos = get_current_position()
-    position_text = "无持仓" if not current_pos else f"{current_pos['side']}仓, 数量: {current_pos['size']}, 盈亏: {current_pos['unrealized_pnl']:.5f}USDT"
-
-    prompt = f"""
-    你是一个专业的加密货币交易分析师。请基于以下XRP/USDT {TRADE_CONFIG['timeframe']}周期数据进行分析：
-
-    {kline_text}
-
-    {technical_analysis}
-
-    {signal_text}
-
-    【当前行情】
-    - 当前价格: ${price_data['price']:,.5f}
-    - 时间: {price_data['timestamp']}
-    - 本K线最高: ${price_data['high']:,.5f}
-    - 本K线最低: ${price_data['low']:,.5f}
-    - 本K线成交量: {price_data['volume']:.5f} XRP
-    - 价格变化: {price_data['price_change']:+.5f}%
-    - 当前持仓: {position_text}
-
-    【分析要求】
-    1. 基于{TRADE_CONFIG['timeframe']}K线趋势和技术指标给出交易信号: BUY(买入) / SELL(卖出) / HOLD(观望)
-    2. 简要分析理由（考虑趋势连续性、支撑阻力、成交量等因素）
-    3. 基于技术分析建议合理的止损价位
-    4. 基于技术分析建议合理的止盈价位
-    5. 评估信号信心程度
-
-    【重要格式要求】
-    - 必须返回纯JSON格式，不要有任何额外文本
-    - 所有属性名必须使用双引号
-    - 不要使用单引号
-    - 不要添加注释
-    - 确保JSON格式完全正确
-
-    请用以下JSON格式回复：
-    {{
-        "signal": "BUY|SELL|HOLD",
-        "reason": "分析理由",
-        "stop_loss": 具体价格,
-        "take_profit": 具体价格,
-        "confidence": "HIGH|MEDIUM|LOW"
-    }}
+    common.analyze_with_deepseek returns (signal_data, raw_response).
     """
-
     try:
-        response = deepseek_client.chat.completions.create(
-            model=settings.DEEPSEEK_MODEL,
-            messages=[
-                {"role": "system",
-                 "content": f"您是一位专业的交易员，专注于{TRADE_CONFIG['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
-                {"role": "user", "content": prompt}
-            ],
-            stream=False,
+        signal_data, raw = common.analyze_with_deepseek(
+            deepseek_client,
+            settings.DEEPSEEK_MODEL,
+            price_data,
+            TRADE_CONFIG,
+            signal_history,
+            get_current_position,
+            safe_json_parse,
+            create_fallback_signal,
+            save_trade_log,
+            max_kline=5,
             temperature=0.1
         )
 
-        # 安全解析JSON
-        result = response.choices[0].message.content
-        print(f"DeepSeek原始回复: {result}")
-
-        # 提取JSON部分
-        start_idx = result.find('{')
-        end_idx = result.rfind('}') + 1
-
-        if start_idx != -1 and end_idx != 0:
-            json_str = result[start_idx:end_idx]
-            signal_data = safe_json_parse(json_str)
-
-            if signal_data is None:
-                signal_data = create_fallback_signal(price_data)
-        else:
-            signal_data = create_fallback_signal(price_data)
-
-        # 验证必需字段
-        required_fields = ['signal', 'reason', 'stop_loss', 'take_profit', 'confidence']
-        if not all(field in signal_data for field in required_fields):
-            signal_data = create_fallback_signal(price_data)
-
-        # 保存信号到历史记录
-        signal_data['timestamp'] = price_data['timestamp']
-        signal_history.append(signal_data)
-        if len(signal_history) > 30:
-            signal_history.pop(0)
-
-        # 信号统计
-        signal_count = len([s for s in signal_history if s.get('signal') == signal_data['signal']])
-        total_signals = len(signal_history)
-        print(f"信号统计: {signal_data['signal']} (最近{total_signals}次中出现{signal_count}次)")
-
-        # 信号连续性检查
-        if len(signal_history) >= 3:
-            last_three = [s['signal'] for s in signal_history[-3:]]
-            if len(set(last_three)) == 1:
-                print(f"⚠️ 注意：连续3次{signal_data['signal']}信号")
-
-        # 保存DeepSeek原始回复到日志
         global deepseek_last_raw
-        deepseek_last_raw = result
-        save_trade_log(price_data, deepseek_raw=deepseek_last_raw, signal_data=signal_data,
-                       current_position=get_current_position())
+        if raw:
+            deepseek_last_raw = raw
 
         return signal_data
-
     except Exception as e:
-        print(f"DeepSeek分析失败: {e}")
+        print(f"调用通用 DeepSeek 分析失败: {e}")
         return create_fallback_signal(price_data)
+
+
+def get_signal_history():
+    """获取信号历史记录"""
+    return signal_history
 
 
 def execute_trade(signal_data, price_data):

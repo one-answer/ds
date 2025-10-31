@@ -386,3 +386,146 @@ def create_fallback_signal(price_data):
         "confidence": "LOW",
         "is_fallback": True
     }
+
+
+def analyze_with_deepseek(
+    client,
+    model,
+    price_data,
+    trade_config,
+    signal_history,
+    get_current_position_fn,
+    safe_json_parse_fn,
+    create_fallback_signal_fn,
+    save_trade_log_fn,
+    max_kline=5,
+    temperature=0.1
+):
+    """通用 DeepSeek 分析器。
+
+    参数:
+    - client: DeepSeek/OpenAI 客户端
+    - model: 模型名称字符串
+    - price_data: 来自 get_ohlcv_enhanced 的 price_data dict
+    - trade_config: TRADE_CONFIG dict
+    - signal_history: 全局 signal_history 列表（会被追加）
+    - get_current_position_fn: 无参数函数，返回当前持仓
+    - safe_json_parse_fn: 函数，用于安全解析 JSON
+    - create_fallback_signal_fn: 函数，用于生成回退信号
+    - save_trade_log_fn: 函数，用于保存日志（脚本层的 wrapper）
+
+    返回 (signal_data, raw_response)
+    """
+    # 生成技术分析文本（复用 common.generate_technical_analysis_text）
+    technical_analysis = generate_technical_analysis_text(price_data)
+
+    # 构建K线数据文本
+    kline_text = f"【最近{max_kline}根{trade_config['timeframe']}K线数据】\n"
+    for i, kline in enumerate(price_data.get('kline_data', [])[-max_kline:]):
+        trend = "阳线" if kline['close'] > kline['open'] else "阴线"
+        try:
+            change = ((kline['close'] - kline['open']) / kline['open']) * 100
+        except Exception:
+            change = 0
+        kline_text += f"K线{i + 1}: {trend} 开盘:{kline['open']:.5f} 收盘:{kline['close']:.5f} 涨跌:{change:+.5f}%\n"
+
+    # 添加上次交易信号
+    signal_text = ""
+    if signal_history:
+        last_signal = signal_history[-1]
+        signal_text = f"\n【上次交易信号】\n信号: {last_signal.get('signal', 'N/A')}\n信心: {last_signal.get('confidence', 'N/A')}"
+
+    # 添加当前持仓信息
+    current_pos = get_current_position_fn()
+    position_text = "无持仓" if not current_pos else f"{current_pos['side']}仓, 数量: {current_pos['size']}, 盈亏: {current_pos.get('unrealized_pnl',0):.5f}USDT"
+
+    prompt = f"""
+    你是一个专业的加密货币交易分析师。请基于以下{trade_config['symbol']} {trade_config['timeframe']}周期数据进行分析：
+
+    {kline_text}
+
+    {technical_analysis}
+
+    {signal_text}
+
+    【当前行情】
+    - 当前价格: ${price_data['price']:,.5f}
+    - 时间: {price_data['timestamp']}
+    - 本K线最高: ${price_data.get('high',0):,.5f}
+    - 本K线最低: ${price_data.get('low',0):,.5f}
+    - 本K线成交量: {price_data.get('volume',0):.5f}
+    - 价格变化: {price_data.get('price_change',0):+.5f}%
+    - 当前持仓: {position_text}
+
+    【分析要求】
+    1. 基于{trade_config['timeframe']}K线趋势和技术指标给出交易信号: BUY(买入) / SELL(卖出) / HOLD(观望)
+    2. 简要分析理由（考虑趋势连续性、支撑阻力、成交量等因素）
+    3. 基于技术分析建议合理的止损价位
+    4. 基于技术分析建议合理的止盈价位
+    5. 评估信号信心程度
+
+    【重要格式要求】
+    - 必须返回纯JSON格式，不要有任何额外文本
+    - 所有属性名必须使用双引号
+    - 不要使用单引号
+    - 不要添加注释
+    - 确保JSON格式完全正确
+
+    请用以下JSON格式回复：
+    {{
+        "signal": "BUY|SELL|HOLD",
+        "reason": "分析理由",
+        "stop_loss": 具体价格,
+        "take_profit": 具体价格,
+        "confidence": "HIGH|MEDIUM|LOW"
+    }}
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": f"您是一位专业的交易员，专注于{trade_config['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
+                {"role": "user", "content": prompt}
+            ],
+            stream=False,
+            temperature=temperature
+        )
+
+        raw = response.choices[0].message.content
+        # 提取JSON部分
+        start_idx = raw.find('{')
+        end_idx = raw.rfind('}') + 1
+
+        if start_idx != -1 and end_idx != 0:
+            json_str = raw[start_idx:end_idx]
+            signal_data = safe_json_parse_fn(json_str)
+            if signal_data is None:
+                signal_data = create_fallback_signal_fn(price_data)
+        else:
+            signal_data = create_fallback_signal_fn(price_data)
+
+        # 验证必需字段
+        required_fields = ['signal', 'reason', 'stop_loss', 'take_profit', 'confidence']
+        if not all(field in signal_data for field in required_fields):
+            signal_data = create_fallback_signal_fn(price_data)
+
+        # 附加时间戳并保存历史
+        signal_data['timestamp'] = price_data.get('timestamp')
+        signal_history.append(signal_data)
+        if len(signal_history) > 30:
+            signal_history.pop(0)
+
+        # 保存原始回复与信号到日志（调用脚本层的 save_trade_log wrapper）
+        try:
+            save_trade_log_fn(price_data, raw, signal_data, get_current_position_fn())
+        except Exception:
+            # 不应阻塞主逻辑
+            pass
+
+        return signal_data, raw
+
+    except Exception as e:
+        print(f"DeepSeek 分析调用失败: {e}")
+        return create_fallback_signal_fn(price_data), None
+
