@@ -12,16 +12,15 @@ Summary
 ## Quick reference
 | Item | Command / File |
 |---|---|
-| Start general / DOGE | `./run_doge.sh` |
-| Start XRP script | `./run_xrp.sh` |
+| Start general / DOGE | `./run_crypto.sh doge` |
+| Start XRP script | `./run_crypto.sh xrp` |
 | Configuration file | `.env` (project root) |
 | Local logs | `trading_logs.db` (SQLite) |
 
 ## Current files (key items)
 - `deepseek_ok_plus.py` — Core logic (general)
 - `deepseek_ok_plus_xrp.py` — XRP-specific logic
-- `run_doge.sh` — DOGE / general run script
-- `run_xrp.sh` — XRP-specific run script
+- `run_crypto.sh` — Unified runner script. Accepts `doge` or `xrp`, prepares environment, installs dependencies, stops previous process (if any), and starts the selected script with logs.
 - `requirements.txt` — Python dependencies
 - `.env` — Configuration file (create before running)
 - `trading_logs.db` — Local SQLite logs/records (generated/updated at runtime)
@@ -72,14 +71,18 @@ Keep credentials secure and do not commit them to version control.
 - Start the DOGE/general script:
 
 ```bash
-./run_doge.sh
+./run_crypto.sh doge
 ```
 
 - Start the XRP-specific script:
 
 ```bash
-./run_xrp.sh
+./run_crypto.sh xrp
 ```
+
+Migration note:
+- The previous wrapper scripts `run_doge.sh` and `run_xrp.sh` were removed and replaced by `run_crypto.sh`.
+- If you previously used `./run_doge.sh` or `./run_xrp.sh`, please switch to `./run_crypto.sh doge` or `./run_crypto.sh xrp`.
 
 The scripts load configuration from `.env` and run the corresponding strategy. To run in background, use `nohup`, `tmux`/`screen`, or a process manager on production servers.
 

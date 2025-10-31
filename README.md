@@ -16,8 +16,8 @@
 - 目录：`ds/`，包含主要脚本与运行脚本。
 
 ## 快速参考
-- 启动通用脚本：`./run_doge.sh`
-- 启动 XRP 脚本：`./run_xrp.sh`
+- 启动通用 / DOGE 脚本：`./run_crypto.sh doge`
+- 启动 XRP 脚本：`./run_crypto.sh xrp`
 - 配置：在项目根放置 `.env`（见下）
 - 本地日志：`trading_logs.db`（SQLite）
 
@@ -26,8 +26,7 @@
 ## 当前目录（主要文件）
 - `deepseek_ok_plus.py` — 核心逻辑（通用）
 - `deepseek_ok_plus_xrp.py` — XRP 专用逻辑
-- `run_doge.sh` — DOGE/通用启动脚本（项目中以该脚本命名）
-- `run_xrp.sh` — XRP 专用启动脚本
+- `run_crypto.sh` — 统一的启动脚本，接受参数 `doge` 或 `xrp`，负责环境准备、依赖安装、停止/启动进程并写日志
 - `requirements.txt` — Python 依赖
 - `.env` — 配置文件（示例见下方，须在运行前新建）
 - `trading_logs.db` — 本地 SQLite 日志/记录（运行时生成/更新）
@@ -75,17 +74,23 @@ OKX_PASSWORD=
 请妥善保管密钥，不要提交到版本控制。项目根已包含 `.gitignore`，请确保 `.env` 被忽略。
 
 ## 使用（运行脚本）
-- 启动通用 / DOGE 脚本：
+推荐使用统一脚本 `run_crypto.sh`：
+
+- 启动 DOGE 脚本：
 
 ```bash
-./run_doge.sh
+./run_crypto.sh doge
 ```
 
-- 启动 XRP 专用脚本：
+- 启动 XRP 脚本：
 
 ```bash
-./run_xrp.sh
+./run_crypto.sh xrp
 ```
+
+迁移说明：
+- 之前项目中存在 `run_doge.sh` 与 `run_xrp.sh` 两个 wrapper 脚本，但它们已被删除并由 `run_crypto.sh` 统一替代。
+- 若你之前使用 `./run_doge.sh` 或 `./run_xrp.sh`，请改为使用 `./run_crypto.sh doge` 或 `./run_crypto.sh xrp`。
 
 这些脚本会读取同目录下的 `.env` 配置并执行相应策略。若要在后台运行，可使用 `nohup` 或 `tmux`/`screen`，或者在生产服务器上用进程管理器（例如 `systemd`、`pm2` 等）。
 
