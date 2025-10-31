@@ -1,14 +1,9 @@
 import os
 import time
-import schedule
 from openai import OpenAI
 import ccxt
-import pandas as pd
 from datetime import datetime
-import json
-import re
 from dotenv import load_dotenv
-import sqlite3
 
 load_dotenv()
 
