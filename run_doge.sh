@@ -5,8 +5,8 @@ ENV_NAME="ds"
 PYTHON_VERSION="3.10"
 
 # 2️⃣ 要运行的 Python 脚本
-SCRIPT_NAME="deepseek_ok_plus.py"
-LOG_FILE="./app.log"
+SCRIPT_NAME="deepseek_doge.py"
+LOG_FILE="./app_doge.log"
 
 # 3️⃣ 检查 conda 环境是否存在
 if ! conda info --envs | grep -q "$ENV_NAME"; then

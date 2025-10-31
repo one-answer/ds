@@ -5,7 +5,7 @@ ENV_NAME="ds"
 PYTHON_VERSION="3.10"
 
 # 2️⃣ 要运行的 Python 脚本
-SCRIPT_NAME="deepseek_ok_plus_xrp.py"
+SCRIPT_NAME="deepseek_xrp.py"
 LOG_FILE="./app_xrp.log"
 
 # 3️⃣ 检查 conda 环境是否存在
