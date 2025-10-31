@@ -165,7 +165,7 @@ def setup_exchange():
         # 获取余额
         balance = exchange.fetch_balance()
         usdt_balance = balance['USDT']['free']
-        print(f"当前USDT余额: {usdt_balance:.4f}")
+        print(f"当前USDT余额: {usdt_balance:.5f}")
 
         return True
     except Exception as e:
@@ -345,9 +345,9 @@ def generate_technical_analysis_text(price_data):
     analysis_text = f"""
     【技术指标分析】
     📈 移动平均线:
-    - 5周期: {safe_float(tech['sma_5']):.4f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_5'])) / safe_float(tech['sma_5']) * 100:+.4f}%
-    - 20周期: {safe_float(tech['sma_20']):.4f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_20'])) / safe_float(tech['sma_20']) * 100:+.4f}%
-    - 50周期: {safe_float(tech['sma_50']):.4f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_50'])) / safe_float(tech['sma_50']) * 100:+.4f}%
+    - 5周期: {safe_float(tech['sma_5']):.5f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_5'])) / safe_float(tech['sma_5']) * 100:+.5f}%
+    - 20周期: {safe_float(tech['sma_20']):.5f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_20'])) / safe_float(tech['sma_20']) * 100:+.5f}%
+    - 50周期: {safe_float(tech['sma_50']):.5f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_50'])) / safe_float(tech['sma_50']) * 100:+.5f}%
 
     🎯 趋势分析:
     - 短期趋势: {trend.get('short_term', 'N/A')}
@@ -356,15 +356,15 @@ def generate_technical_analysis_text(price_data):
     - MACD方向: {trend.get('macd', 'N/A')}
 
     📊 动量指标:
-    - RSI: {safe_float(tech['rsi']):.4f} ({'超买' if safe_float(tech['rsi']) > 70 else '超卖' if safe_float(tech['rsi']) < 30 else '中性'})
-    - MACD: {safe_float(tech['macd']):.4f}
-    - 信号线: {safe_float(tech['macd_signal']):.4f}
+    - RSI: {safe_float(tech['rsi']):.5f} ({'超买' if safe_float(tech['rsi']) > 70 else '超卖' if safe_float(tech['rsi']) < 30 else '中性'})
+    - MACD: {safe_float(tech['macd']):.5f}
+    - 信号线: {safe_float(tech['macd_signal']):.5f}
 
     🎚️ 布林带位置: {safe_float(tech['bb_position']):.2%} ({'上部' if safe_float(tech['bb_position']) > 0.7 else '下部' if safe_float(tech['bb_position']) < 0.3 else '中部'})
 
     💰 关键水平:
-    - 静态阻力: {safe_float(levels.get('static_resistance', 0)):.4f}
-    - 静态支撑: {safe_float(levels.get('static_support', 0)):.4f}
+    - 静态阻力: {safe_float(levels.get('static_resistance', 0)):.5f}
+    - 静态支撑: {safe_float(levels.get('static_support', 0)):.5f}
     """
     return analysis_text
 
@@ -438,7 +438,7 @@ def analyze_with_deepseek(price_data):
     for i, kline in enumerate(price_data['kline_data'][-5:]):
         trend = "阳线" if kline['close'] > kline['open'] else "阴线"
         change = ((kline['close'] - kline['open']) / kline['open']) * 100
-        kline_text += f"K线{i + 1}: {trend} 开盘:{kline['open']:.4f} 收盘:{kline['close']:.4f} 涨跌:{change:+.4f}%\n"
+        kline_text += f"K线{i + 1}: {trend} 开盘:{kline['open']:.5f} 收盘:{kline['close']:.5f} 涨跌:{change:+.5f}%\n"
 
     # 添加上次交易信号
     signal_text = ""
@@ -448,7 +448,7 @@ def analyze_with_deepseek(price_data):
 
     # 添加当前持仓信息
     current_pos = get_current_position()
-    position_text = "无持仓" if not current_pos else f"{current_pos['side']}仓, 数量: {current_pos['size']}, 盈亏: {current_pos['unrealized_pnl']:.4f}USDT"
+    position_text = "无持仓" if not current_pos else f"{current_pos['side']}仓, 数量: {current_pos['size']}, 盈亏: {current_pos['unrealized_pnl']:.5f}USDT"
 
     prompt = f"""
     你是一个专业的加密货币交易分析师。请基于以下XRP/USDT {TRADE_CONFIG['timeframe']}周期数据进行分析：
@@ -460,12 +460,12 @@ def analyze_with_deepseek(price_data):
     {signal_text}
 
     【当前行情】
-    - 当前价格: ${price_data['price']:,.4f}
+    - 当前价格: ${price_data['price']:,.5f}
     - 时间: {price_data['timestamp']}
-    - 本K线最高: ${price_data['high']:,.4f}
-    - 本K线最低: ${price_data['low']:,.4f}
-    - 本K线成交量: {price_data['volume']:.4f} XRP
-    - 价格变化: {price_data['price_change']:+.4f}%
+    - 本K线最高: ${price_data['high']:,.5f}
+    - 本K线最低: ${price_data['low']:,.5f}
+    - 本K线成交量: {price_data['volume']:.5f} XRP
+    - 价格变化: {price_data['price_change']:+.5f}%
     - 当前持仓: {position_text}
 
     【分析要求】
@@ -565,8 +565,8 @@ def execute_trade(signal_data, price_data):
     print(f"交易信号: {signal_data['signal']}")
     print(f"信心程度: {signal_data['confidence']}")
     print(f"理由: {signal_data['reason']}")
-    print(f"止损: ${signal_data['stop_loss']:,.4f}")
-    print(f"止盈: ${signal_data['take_profit']:,.4f}")
+    print(f"止损: ${signal_data['stop_loss']:,.5f}")
+    print(f"止盈: ${signal_data['take_profit']:,.5f}")
     print(f"当前持仓: {current_position}")
 
     # 风险管理：低信心信号不执行
@@ -619,12 +619,12 @@ def execute_trade(signal_data, price_data):
             print("建议观望，不执行交易")
             return
 
-        print(f"操作类型: {operation_type}, 需要保证金: {required_margin:.4f} USDT")
+        print(f"操作类型: {operation_type}, 需要保证金: {required_margin:.5f} USDT")
 
         # 只有在需要额外保证金时才检查
         if required_margin > 0:
             if required_margin > usdt_balance * 0.8:
-                print(f"⚠️ 保证金不足，跳过交易。需要: {required_margin:.4f} USDT, 可用: {usdt_balance:.4f} USDT")
+                print(f"⚠️ 保证金不足，跳过交易。需要: {required_margin:.5f} USDT, 可用: {usdt_balance:.5f} USDT")
                 return
         else:
             print("✅ 无需额外保证金，继续执行")
@@ -762,9 +762,9 @@ def trading_bot():
     if not price_data:
         return
 
-    print(f"XRP当前价格: ${price_data['price']:,.4f}")
+    print(f"XRP当前价格: ${price_data['price']:,.5f}")
     print(f"数据周期: {TRADE_CONFIG['timeframe']}")
-    print(f"价格变化: {price_data['price_change']:+.4f}%")
+    print(f"价格变化: {price_data['price_change']:+.5f}%")
 
     # 2. 使用DeepSeek分析（带重试）
     signal_data = analyze_with_deepseek_with_retry(price_data)

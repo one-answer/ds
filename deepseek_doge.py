@@ -355,8 +355,8 @@ def generate_technical_analysis_text(price_data):
 
     📊 动量指标:
     - RSI: {safe_float(tech['rsi']):.5f} ({'超买' if safe_float(tech['rsi']) > 70 else '超卖' if safe_float(tech['rsi']) < 30 else '中性'})
-    - MACD: {safe_float(tech['macd']):.4f}
-    - 信号线: {safe_float(tech['macd_signal']):.4f}
+    - MACD: {safe_float(tech['macd']):.5f}
+    - 信号线: {safe_float(tech['macd_signal']):.5f}
 
     🎚️ 布林带位置: {safe_float(tech['bb_position']):.2%} ({'上部' if safe_float(tech['bb_position']) > 0.7 else '下部' if safe_float(tech['bb_position']) < 0.3 else '中部'})
 
