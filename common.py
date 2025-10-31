@@ -12,27 +12,49 @@ def init_db(db_path):
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute('''
-            CREATE TABLE IF NOT EXISTS trade_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT,
-                symbol TEXT,
-                timeframe TEXT,
-                price REAL,
-                price_change REAL,
-                deepseek_raw TEXT,
-                signal TEXT,
-                reason TEXT,
-                stop_loss REAL,
-                take_profit REAL,
-                confidence TEXT,
-                current_position TEXT,
-                operation_type TEXT,
-                required_margin REAL,
-                order_status TEXT,
-                updated_position TEXT,
-                extra TEXT
-            )
-        ''')
+                    CREATE TABLE IF NOT EXISTS trade_logs
+                    (
+                        id
+                        INTEGER
+                        PRIMARY
+                        KEY
+                        AUTOINCREMENT,
+                        created_at
+                        TEXT,
+                        symbol
+                        TEXT,
+                        timeframe
+                        TEXT,
+                        price
+                        REAL,
+                        price_change
+                        REAL,
+                        deepseek_raw
+                        TEXT,
+                        signal
+                        TEXT,
+                        reason
+                        TEXT,
+                        stop_loss
+                        REAL,
+                        take_profit
+                        REAL,
+                        confidence
+                        TEXT,
+                        current_position
+                        TEXT,
+                        operation_type
+                        TEXT,
+                        required_margin
+                        REAL,
+                        order_status
+                        TEXT,
+                        updated_position
+                        TEXT,
+                        extra
+                        TEXT
+                    )
+                    ''')
         conn.commit()
     except Exception as e:
         print(f"初始化数据库失败: {e}")
@@ -61,34 +83,37 @@ def save_trade_log(db_path, trade_config, price_data=None, deepseek_raw=None, si
 
         signal = signal_data.get('signal') if signal_data else None
         reason = signal_data.get('reason') if signal_data else None
-        stop_loss = float(signal_data.get('stop_loss')) if signal_data and signal_data.get('stop_loss') is not None else None
-        take_profit = float(signal_data.get('take_profit')) if signal_data and signal_data.get('take_profit') is not None else None
+        stop_loss = float(signal_data.get('stop_loss')) if signal_data and signal_data.get(
+            'stop_loss') is not None else None
+        take_profit = float(signal_data.get('take_profit')) if signal_data and signal_data.get(
+            'take_profit') is not None else None
         confidence = signal_data.get('confidence') if signal_data else None
 
         cur.execute('''
-            INSERT INTO trade_logs (
-                created_at, symbol, timeframe, price, price_change, deepseek_raw, signal, reason, stop_loss, take_profit, confidence,
-                current_position, operation_type, required_margin, order_status, updated_position, extra
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            created_at,
-            symbol,
-            timeframe,
-            price,
-            price_change,
-            deepseek_raw_txt,
-            signal,
-            reason,
-            stop_loss,
-            take_profit,
-            confidence,
-            json.dumps(current_position) if current_position is not None else None,
-            operation_type,
-            required_margin,
-            order_status,
-            json.dumps(updated_position) if updated_position is not None else None,
-            json.dumps(extra) if extra is not None else None
-        ))
+                    INSERT INTO trade_logs (created_at, symbol, timeframe, price, price_change, deepseek_raw, signal,
+                                            reason, stop_loss, take_profit, confidence,
+                                            current_position, operation_type, required_margin, order_status,
+                                            updated_position, extra)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        created_at,
+                        symbol,
+                        timeframe,
+                        price,
+                        price_change,
+                        deepseek_raw_txt,
+                        signal,
+                        reason,
+                        stop_loss,
+                        take_profit,
+                        confidence,
+                        json.dumps(current_position) if current_position is not None else None,
+                        operation_type,
+                        required_margin,
+                        order_status,
+                        json.dumps(updated_position) if updated_position is not None else None,
+                        json.dumps(extra) if extra is not None else None
+                    ))
         conn.commit()
     except Exception as e:
         print(f"保存日志失败: {e}")
@@ -193,7 +218,8 @@ def get_market_trend(df):
 def get_ohlcv_enhanced(exchange, trade_config):
     """Generic function to fetch OHLCV and compute technical indicators."""
     try:
-        ohlcv = exchange.fetch_ohlcv(trade_config['symbol'], trade_config['timeframe'], limit=trade_config['data_points'])
+        ohlcv = exchange.fetch_ohlcv(trade_config['symbol'], trade_config['timeframe'],
+                                     limit=trade_config['data_points'])
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         df = calculate_technical_indicators(df)
@@ -321,29 +347,34 @@ def safe_json_parse(json_str):
 
 # 新增公共函数：等待到下一个周期整点（默认15分钟）
 def wait_for_next_period(period_minutes=15):
-    """返回到下一个 period_minutes 分钟整点需要等待的秒数。
+    """等待到下一个15分钟整点"""
+    now = datetime.now()
+    current_minute = now.minute
+    current_second = now.second
 
-    规则与原脚本一致：如果当前已接近整点（分钟模 period 为 0 且秒数 < 10），
-    则立即返回 0 以便立刻执行。
-    """
-    try:
-        now = datetime.now()
-        current_minute = now.minute
-        current_second = now.second
+    # 计算下一个整点时间（00, 15, 30, 45分钟）
+    next_period_minute = ((current_minute // 15) + 1) * 15
+    if next_period_minute == 60:
+        next_period_minute = 0
 
-        remainder = current_minute % period_minutes
-        if remainder == 0 and current_second < 10:
-            return 0
+    # 计算需要等待的总秒数
+    if next_period_minute > current_minute:
+        minutes_to_wait = next_period_minute - current_minute
+    else:
+        minutes_to_wait = 60 - current_minute + next_period_minute
 
-        minutes_to_wait = period_minutes - remainder
-        seconds_to_wait = minutes_to_wait * 60 - current_second
+    seconds_to_wait = minutes_to_wait * 60 - current_second
 
-        print(f"🕒 等待 {minutes_to_wait} 分 {60 - current_second} 秒到整点...")
-        return seconds_to_wait
-    except Exception as e:
-        # 在任何意外情况下，返回一个较短的回退等待时间，避免阻塞
-        print(f"计算等待时间失败: {e}")
-        return 5
+    # 显示友好的等待时间
+    display_minutes = minutes_to_wait - 1 if current_second > 0 else minutes_to_wait
+    display_seconds = 60 - current_second if current_second > 0 else 0
+
+    if display_minutes > 0:
+        print(f"🕒 等待 {display_minutes} 分 {display_seconds} 秒到整点...")
+    else:
+        print(f"🕒 等待 {display_seconds} 秒到整点...")
+
+    return seconds_to_wait
 
 
 def create_fallback_signal(price_data):
