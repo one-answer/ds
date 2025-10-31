@@ -9,5 +9,4 @@ ENV_NAME="ds"
 PYTHON_VERSION="3.10"
 
 # Call common runner
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"$DIR/run_common.sh" "$SCRIPT_NAME" "$LOG_FILE" "$ENV_NAME" "$PYTHON_VERSION"
+./run_common.sh" "$SCRIPT_NAME" "$LOG_FILE" "$ENV_NAME" "$PYTHON_VERSION"
