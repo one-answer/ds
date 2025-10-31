@@ -9,4 +9,4 @@ ENV_NAME="ds"
 PYTHON_VERSION="3.10"
 
 # Call common runner
-./run_common.sh" "$SCRIPT_NAME" "$LOG_FILE" "$ENV_NAME" "$PYTHON_VERSION"
+/root/ds/run_common.sh" "$SCRIPT_NAME" "$LOG_FILE" "$ENV_NAME" "$PYTHON_VERSION"
