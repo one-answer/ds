@@ -18,15 +18,9 @@ deepseek_client = OpenAI(
     base_url="https://api.deepseek.com"
 )
 
-# 初始化OKX交易所
-exchange = ccxt.okx({
-    'options': {
-        'defaultType': 'swap',  # OKX使用swap表示永续合约
-    },
-    'apiKey': os.getenv('OKX_API_KEY'),
-    'secret': os.getenv('OKX_SECRET'),
-    'password': os.getenv('OKX_PASSWORD'),  # OKX需要交易密码
-})
+# Local imports (when running the script directly from the ds/ directory)
+import common
+import settings
 
 # 交易参数配置 - 结合两个版本的优点
 TRADE_CONFIG = {
@@ -43,6 +37,16 @@ TRADE_CONFIG = {
     }
 }
 
+# 初始化OKX交易所
+exchange = ccxt.okx({
+    'options': {
+        'defaultType': settings.DEFAULT_TYPE,  # OKX使用swap表示永续合约
+    },
+    'apiKey': os.getenv('OKX_API_KEY'),
+    'secret': os.getenv('OKX_SECRET'),
+    'password': os.getenv('OKX_PASSWORD'),  # OKX需要交易密码
+})
+
 # 全局变量存储历史数据
 price_history = []
 signal_history = []
@@ -53,98 +57,13 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'trading_logs.db')
 
 
 def init_db():
-    """Initialize the SQLite database and create table if not exists."""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS trade_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT,
-                symbol TEXT,
-                timeframe TEXT,
-                price REAL,
-                price_change REAL,
-                deepseek_raw TEXT,
-                signal TEXT,
-                reason TEXT,
-                stop_loss REAL,
-                take_profit REAL,
-                confidence TEXT,
-                current_position TEXT,
-                operation_type TEXT,
-                required_margin REAL,
-                order_status TEXT,
-                updated_position TEXT,
-                extra TEXT
-            )
-        ''')
-        conn.commit()
-    except Exception as e:
-        print(f"初始化数据库失败: {e}")
-    finally:
-        try:
-            if conn:
-                conn.close()
-        except Exception:
-            pass
+    return common.init_db(DB_PATH)
 
 
 def save_trade_log(price_data=None, deepseek_raw=None, signal_data=None, current_position=None,
                    operation_type=None, required_margin=None, order_status=None, updated_position=None, extra=None):
-    """Save a structured log row into SQLite."""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-
-        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        symbol = TRADE_CONFIG.get('symbol')
-        timeframe = TRADE_CONFIG.get('timeframe')
-        price = float(price_data['price']) if price_data and 'price' in price_data else None
-        price_change = float(price_data['price_change']) if price_data and 'price_change' in price_data else None
-        deepseek_raw_txt = deepseek_raw if deepseek_raw else None
-
-        signal = signal_data.get('signal') if signal_data else None
-        reason = signal_data.get('reason') if signal_data else None
-        stop_loss = float(signal_data.get('stop_loss')) if signal_data and signal_data.get('stop_loss') is not None else None
-        take_profit = float(signal_data.get('take_profit')) if signal_data and signal_data.get('take_profit') is not None else None
-        confidence = signal_data.get('confidence') if signal_data else None
-
-        cur.execute('''
-            INSERT INTO trade_logs (
-                created_at, symbol, timeframe, price, price_change, deepseek_raw, signal, reason, stop_loss, take_profit, confidence,
-                current_position, operation_type, required_margin, order_status, updated_position, extra
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            created_at,
-            symbol,
-            timeframe,
-            price,
-            price_change,
-            deepseek_raw_txt,
-            signal,
-            reason,
-            stop_loss,
-            take_profit,
-            confidence,
-            json.dumps(current_position) if current_position is not None else None,
-            operation_type,
-            required_margin,
-            order_status,
-            json.dumps(updated_position) if updated_position is not None else None,
-            json.dumps(extra) if extra is not None else None
-        ))
-        conn.commit()
-    except Exception as e:
-        print(f"保存日志失败: {e}")
-    finally:
-        try:
-            if conn:
-                conn.close()
-        except:
-            pass
+    return common.save_trade_log(DB_PATH, TRADE_CONFIG, price_data, deepseek_raw, signal_data, current_position,
+                                 operation_type, required_margin, order_status, updated_position, extra)
 
 
 # Global to store DeepSeek raw reply for logging
@@ -158,9 +77,9 @@ def setup_exchange():
         exchange.set_leverage(
             TRADE_CONFIG['leverage'],
             TRADE_CONFIG['symbol'],
-            {'mgnMode': 'cross'}  # 全仓模式
+            {'mgnMode': settings.MARGIN_MODE}  # 全仓模式
         )
-        print(f"设置杠杆倍数: {TRADE_CONFIG['leverage']}x")
+        print(f"设置杠杆倍数: {TRADE_CONFIG['leverage']}x, mgnMode={settings.MARGIN_MODE}")
 
         # 获取余额
         balance = exchange.fetch_balance()
@@ -174,257 +93,35 @@ def setup_exchange():
 
 
 def calculate_technical_indicators(df):
-    """计算技术指标 - 来自第一个策略"""
-    try:
-        # 移动平均线
-        df['sma_5'] = df['close'].rolling(window=5, min_periods=1).mean()
-        df['sma_20'] = df['close'].rolling(window=20, min_periods=1).mean()
-        df['sma_50'] = df['close'].rolling(window=50, min_periods=1).mean()
-
-        # 指数移动平均线
-        df['ema_12'] = df['close'].ewm(span=12).mean()
-        df['ema_26'] = df['close'].ewm(span=26).mean()
-        df['macd'] = df['ema_12'] - df['ema_26']
-        df['macd_signal'] = df['macd'].ewm(span=9).mean()
-        df['macd_histogram'] = df['macd'] - df['macd_signal']
-
-        # 相对强弱指数 (RSI)
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-        rs = gain / loss
-        df['rsi'] = 100 - (100 / (1 + rs))
-
-        # 布林带
-        df['bb_middle'] = df['close'].rolling(20).mean()
-        bb_std = df['close'].rolling(20).std()
-        df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
-        df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
-        df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
-
-        # 成交量均线
-        df['volume_ma'] = df['volume'].rolling(20).mean()
-        df['volume_ratio'] = df['volume'] / df['volume_ma']
-
-        # 支撑阻力位
-        df['resistance'] = df['high'].rolling(20).max()
-        df['support'] = df['low'].rolling(20).min()
-
-        # 填充NaN值
-        df = df.bfill().ffill()
-
-        return df
-    except Exception as e:
-        print(f"技术指标计算失败: {e}")
-        return df
+    return common.calculate_technical_indicators(df)
 
 
 def get_support_resistance_levels(df, lookback=20):
-    """计算支撑阻力位"""
-    try:
-        recent_high = df['high'].tail(lookback).max()
-        recent_low = df['low'].tail(lookback).min()
-        current_price = df['close'].iloc[-1]
-
-        resistance_level = recent_high
-        support_level = recent_low
-
-        # 动态支撑阻力（基于布林带）
-        bb_upper = df['bb_upper'].iloc[-1]
-        bb_lower = df['bb_lower'].iloc[-1]
-
-        return {
-            'static_resistance': resistance_level,
-            'static_support': support_level,
-            'dynamic_resistance': bb_upper,
-            'dynamic_support': bb_lower,
-            'price_vs_resistance': ((resistance_level - current_price) / current_price) * 100,
-            'price_vs_support': ((current_price - support_level) / support_level) * 100
-        }
-    except Exception as e:
-        print(f"支撑阻力计算失败: {e}")
-        return {}
+    return common.get_support_resistance_levels(df, lookback)
 
 
 def get_market_trend(df):
-    """判断市场趋势"""
-    try:
-        current_price = df['close'].iloc[-1]
-
-        # 多时间框架趋势分析
-        trend_short = "上涨" if current_price > df['sma_20'].iloc[-1] else "下跌"
-        trend_medium = "上涨" if current_price > df['sma_50'].iloc[-1] else "下跌"
-
-        # MACD趋势
-        macd_trend = "bullish" if df['macd'].iloc[-1] > df['macd_signal'].iloc[-1] else "bearish"
-
-        # 综合趋势判断
-        if trend_short == "上涨" and trend_medium == "上涨":
-            overall_trend = "强势上涨"
-        elif trend_short == "下跌" and trend_medium == "下跌":
-            overall_trend = "强势下跌"
-        else:
-            overall_trend = "震荡整理"
-
-        return {
-            'short_term': trend_short,
-            'medium_term': trend_medium,
-            'macd': macd_trend,
-            'overall': overall_trend,
-            'rsi_level': df['rsi'].iloc[-1]
-        }
-    except Exception as e:
-        print(f"趋势分析失败: {e}")
-        return {}
+    return common.get_market_trend(df)
 
 
 def get_btc_ohlcv_enhanced():
-    """增强版：获取XRP K线数据并计算技术指标"""
-    try:
-        # 获取K线数据
-        ohlcv = exchange.fetch_ohlcv(TRADE_CONFIG['symbol'], TRADE_CONFIG['timeframe'],
-                                     limit=TRADE_CONFIG['data_points'])
-
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-
-        # 计算技术指标
-        df = calculate_technical_indicators(df)
-
-        current_data = df.iloc[-1]
-        previous_data = df.iloc[-2]
-
-        # 获取技术分析数据
-        trend_analysis = get_market_trend(df)
-        levels_analysis = get_support_resistance_levels(df)
-
-        return {
-            'price': current_data['close'],
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'high': current_data['high'],
-            'low': current_data['low'],
-            'volume': current_data['volume'],
-            'timeframe': TRADE_CONFIG['timeframe'],
-            'price_change': ((current_data['close'] - previous_data['close']) / previous_data['close']) * 100,
-            'kline_data': df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].tail(10).to_dict('records'),
-            'technical_data': {
-                'sma_5': current_data.get('sma_5', 0),
-                'sma_20': current_data.get('sma_20', 0),
-                'sma_50': current_data.get('sma_50', 0),
-                'rsi': current_data.get('rsi', 0),
-                'macd': current_data.get('macd', 0),
-                'macd_signal': current_data.get('macd_signal', 0),
-                'macd_histogram': current_data.get('macd_histogram', 0),
-                'bb_upper': current_data.get('bb_upper', 0),
-                'bb_lower': current_data.get('bb_lower', 0),
-                'bb_position': current_data.get('bb_position', 0),
-                'volume_ratio': current_data.get('volume_ratio', 0)
-            },
-            'trend_analysis': trend_analysis,
-            'levels_analysis': levels_analysis,
-            'full_data': df
-        }
-    except Exception as e:
-        print(f"获取增强K线数据失败: {e}")
-        return None
+    return common.get_ohlcv_enhanced(exchange, TRADE_CONFIG)
 
 
 def generate_technical_analysis_text(price_data):
-    """生成技术分析文本"""
-    if 'technical_data' not in price_data:
-        return "技术指标数据不可用"
-
-    tech = price_data['technical_data']
-    trend = price_data.get('trend_analysis', {})
-    levels = price_data.get('levels_analysis', {})
-
-    # 检查数据有效性
-    def safe_float(value, default=0):
-        return float(value) if value and pd.notna(value) else default
-
-    analysis_text = f"""
-    【技术指标分析】
-    📈 移动平均线:
-    - 5周期: {safe_float(tech['sma_5']):.5f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_5'])) / safe_float(tech['sma_5']) * 100:+.5f}%
-    - 20周期: {safe_float(tech['sma_20']):.5f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_20'])) / safe_float(tech['sma_20']) * 100:+.5f}%
-    - 50周期: {safe_float(tech['sma_50']):.5f} | 价格相对: {(price_data['price'] - safe_float(tech['sma_50'])) / safe_float(tech['sma_50']) * 100:+.5f}%
-
-    🎯 趋势分析:
-    - 短期趋势: {trend.get('short_term', 'N/A')}
-    - 中期趋势: {trend.get('medium_term', 'N/A')}
-    - 整体趋势: {trend.get('overall', 'N/A')}
-    - MACD方向: {trend.get('macd', 'N/A')}
-
-    📊 动量指标:
-    - RSI: {safe_float(tech['rsi']):.5f} ({'超买' if safe_float(tech['rsi']) > 70 else '超卖' if safe_float(tech['rsi']) < 30 else '中性'})
-    - MACD: {safe_float(tech['macd']):.5f}
-    - 信号线: {safe_float(tech['macd_signal']):.5f}
-
-    🎚️ 布林带位置: {safe_float(tech['bb_position']):.2%} ({'上部' if safe_float(tech['bb_position']) > 0.7 else '下部' if safe_float(tech['bb_position']) < 0.3 else '中部'})
-
-    💰 关键水平:
-    - 静态阻力: {safe_float(levels.get('static_resistance', 0)):.5f}
-    - 静态支撑: {safe_float(levels.get('static_support', 0)):.5f}
-    """
-    return analysis_text
+    return common.generate_technical_analysis_text(price_data)
 
 
 def get_current_position():
-    """获取当前持仓情况 - OKX版本"""
-    try:
-        positions = exchange.fetch_positions([TRADE_CONFIG['symbol']])
-
-        for pos in positions:
-            if pos['symbol'] == TRADE_CONFIG['symbol']:
-                contracts = float(pos['contracts']) if pos['contracts'] else 0
-
-                if contracts > 0:
-                    return {
-                        'side': pos['side'],  # 'long' or 'short'
-                        'size': contracts,
-                        'entry_price': float(pos['entryPrice']) if pos['entryPrice'] else 0,
-                        'unrealized_pnl': float(pos['unrealizedPnl']) if pos['unrealizedPnl'] else 0,
-                        'leverage': float(pos['leverage']) if pos['leverage'] else TRADE_CONFIG['leverage'],
-                        'symbol': pos['symbol']
-                    }
-
-        return None
-
-    except Exception as e:
-        print(f"获取持仓失败: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+    return common.get_current_position(exchange, TRADE_CONFIG['symbol'], TRADE_CONFIG['leverage'])
 
 
 def safe_json_parse(json_str):
-    """安全解析JSON，处理格式不规范的情况"""
-    try:
-        return json.loads(json_str)
-    except json.JSONDecodeError:
-        try:
-            # 修复常见的JSON格式问题
-            json_str = json_str.replace("'", '"')
-            json_str = re.sub(r'(\w+):', r'"\1":', json_str)
-            json_str = re.sub(r',\s*}', '}', json_str)
-            json_str = re.sub(r',\s*]', ']', json_str)
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            print(f"JSON解析失败，原始内容: {json_str}")
-            print(f"错误详情: {e}")
-            return None
+    return common.safe_json_parse(json_str)
 
 
 def create_fallback_signal(price_data):
-    """创建备用交易信号"""
-    return {
-        "signal": "HOLD",
-        "reason": "因技术分析暂时不可用，采取保守策略",
-        "stop_loss": price_data['price'] * 0.98,  # -2%
-        "take_profit": price_data['price'] * 1.02,  # +2%
-        "confidence": "LOW",
-        "is_fallback": True
-    }
+    return common.create_fallback_signal(price_data)
 
 
 def analyze_with_deepseek(price_data):
@@ -494,7 +191,7 @@ def analyze_with_deepseek(price_data):
 
     try:
         response = deepseek_client.chat.completions.create(
-            model="deepseek-chat",
+            model=settings.DEEPSEEK_MODEL,
             messages=[
                 {"role": "system",
                  "content": f"您是一位专业的交易员，专注于{TRADE_CONFIG['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
@@ -638,7 +335,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'buy',
                     current_position['size'],
-                    params={'reduceOnly': True, 'tag': 'f1ee03b510d5SUDE'}
+                    params={'reduceOnly': True, 'tag': settings.BROKER_TAG}
                 )
                 time.sleep(1)
                 # 开多仓
@@ -646,7 +343,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'buy',
                     TRADE_CONFIG['amount'],
-                    params={'tag': 'f1ee03b510d5SUDE'}
+                    params={'tag': settings.BROKER_TAG}
                 )
             elif current_position and current_position['side'] == 'long':
                 print("已有多头持仓，保持现状")
@@ -657,7 +354,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'buy',
                     TRADE_CONFIG['amount'],
-                    params={'tag': 'f1ee03b510d5SUDE', 'takeProfit': {
+                    params={'tag': settings.BROKER_TAG, 'takeProfit': {
                         'triggerPrice': signal_data['take_profit'],
                         'price': signal_data['take_profit'],
                         'reduceOnly': True
@@ -677,7 +374,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'sell',
                     current_position['size'],
-                    params={'reduceOnly': True, 'tag': 'f1ee03b510d5SUDE'}
+                    params={'reduceOnly': True, 'tag': settings.BROKER_TAG}
                 )
                 time.sleep(1)
                 # 开空仓
@@ -685,7 +382,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'sell',
                     TRADE_CONFIG['amount'],
-                    params={'tag': 'f1ee03b510d5SUDE'}
+                    params={'tag': settings.BROKER_TAG}
                 )
             elif current_position and current_position['side'] == 'short':
                 # 平空仓
@@ -693,7 +390,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'buy',
                     current_position['size'],
-                    params={'reduceOnly': True, 'tag': 'f1ee03b510d5SUDE'}
+                    params={'reduceOnly': True, 'tag': settings.BROKER_TAG}
                 )
                 print("空头持仓已平仓")
             else:
@@ -703,7 +400,7 @@ def execute_trade(signal_data, price_data):
                     TRADE_CONFIG['symbol'],
                     'sell',
                     TRADE_CONFIG['amount'],
-                    params={'tag': 'f1ee03b510d5SUDE', 'takeProfit': {  # 止盈设置（价格下跌时触发）
+                    params={'tag': settings.BROKER_TAG, 'takeProfit': {  # 止盈设置（价格下跌时触发）
                         'triggerPrice': signal_data['take_profit'],  # 触发价（低于开仓价）
                         'price': signal_data['take_profit'],
                         'reduceOnly': True  # 仅平仓
