@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 import sqlite3
 import pandas as pd
+import time
 
 
 def init_db(db_path):
@@ -528,4 +529,191 @@ def analyze_with_deepseek(
     except Exception as e:
         print(f"DeepSeek 分析调用失败: {e}")
         return create_fallback_signal_fn(price_data), None
+
+
+# 新增通用 execute_trade 函数，供多个脚本复用
+def execute_trade(
+    exchange,
+    trade_config,
+    signal_data,
+    price_data,
+    get_current_position_fn,
+    save_trade_log_fn,
+    deepseek_raw=None,
+    settings_module=None
+):
+    """通用交易执行函数（支持 OKX 类似接口）。
+
+    参数:
+    - exchange: ccxt 交易所实例
+    - trade_config: 脚本的 TRADE_CONFIG dict
+    - signal_data: 来自 analyze_with_deepseek 的信号 dict
+    - price_data: 来自 get_ohlcv_enhanced 的 price_data dict
+    - get_current_position_fn: 无参函数，返回当前持仓
+    - save_trade_log_fn: 无参 wrapper，用于保存日志，签名与脚本中 save_trade_log 保持一致
+    - deepseek_raw: 可选，DeepSeek 的原始回复文本（用于记录）
+    - settings_module: 可选，脚本的 settings 模块（用于读取 BROKER_TAG 等配置）
+
+    返回: updated_position 或 None
+    """
+    try:
+        current_position = get_current_position_fn()
+
+        print(f"交易信号: {signal_data.get('signal')}")
+        print(f"信心程度: {signal_data.get('confidence')}")
+        print(f"理由: {signal_data.get('reason')}")
+        try:
+            print(f"止损: ${signal_data.get('stop_loss'):, .5f}")
+            print(f"止盈: ${signal_data.get('take_profit'):, .5f}")
+        except Exception:
+            pass
+        print(f"当前持仓: {current_position}")
+
+        # 风险管理：低信心信号不执行
+        if signal_data.get('confidence') == 'LOW' and not trade_config.get('test_mode'):
+            print("⚠️ 低信心信号，跳过执行")
+            try:
+                save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, "skip", order_status="skipped")
+            except Exception:
+                pass
+            return None
+
+        if trade_config.get('test_mode'):
+            print("测试模式 - 仅模拟交易")
+            try:
+                save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, operation_type='test_mode', order_status='test')
+            except Exception:
+                pass
+            return None
+
+        # 获取账户余额
+        balance = exchange.fetch_balance()
+        usdt_balance = None
+        try:
+            usdt_balance = balance['USDT']['free']
+        except Exception:
+            # 尝试不同键名
+            usdt_balance = balance.get('free', {}).get('USDT') if isinstance(balance.get('free'), dict) else None
+
+        # 智能保证金检查
+        required_margin = 0
+        operation_type = None
+        signal = signal_data.get('signal')
+
+        price = price_data.get('price', 0)
+        amount = trade_config.get('amount', 0)
+        leverage = trade_config.get('leverage', 1)
+
+        if signal == 'BUY':
+            if current_position and current_position.get('side') == 'short':
+                required_margin = price * amount / leverage
+                operation_type = "平空开多"
+            elif not current_position:
+                required_margin = price * amount / leverage
+                operation_type = "开多仓"
+            else:
+                required_margin = 0
+                operation_type = "保持多仓"
+
+        elif signal == 'SELL':
+            if current_position and current_position.get('side') == 'long':
+                required_margin = price * amount / leverage
+                operation_type = "平多开空"
+            elif not current_position:
+                required_margin = price * amount / leverage
+                operation_type = "开空仓"
+            else:
+                required_margin = 0
+                operation_type = "保持空仓"
+
+        elif signal == 'HOLD':
+            print("建议观望，不执行交易")
+            try:
+                save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, operation_type='hold', order_status='held')
+            except Exception:
+                pass
+            return None
+
+        print(f"操作类型: {operation_type}, 需要保证金: {required_margin:.5f} USDT")
+
+        # 记录执行前的快照日志
+        try:
+            save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, operation_type=operation_type, required_margin=required_margin, order_status='precheck')
+        except Exception:
+            pass
+
+        # 只有在需要额外保证金时才检查
+        if required_margin > 0 and usdt_balance is not None:
+            if required_margin > usdt_balance * 0.8:
+                print(f"⚠️ 保证金不足，跳过交易。需要: {required_margin:.5f} USDT, 可用: {usdt_balance:.5f} USDT")
+                try:
+                    save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, "skip", order_status="skipped")
+                except Exception:
+                    pass
+                return None
+        else:
+            print("✅ 无需额外保证金，继续执行")
+
+        # 执行交易
+        tag_param = {}
+        if settings_module and hasattr(settings_module, 'BROKER_TAG'):
+            tag_param['tag'] = getattr(settings_module, 'BROKER_TAG')
+
+        # 下单逻辑
+        try:
+            if signal == 'BUY':
+                if current_position and current_position.get('side') == 'short':
+                    print("平空仓并开多仓...")
+                    exchange.create_market_order(trade_config['symbol'], 'buy', current_position.get('size'), params={**{'reduceOnly': True}, **tag_param})
+                    time.sleep(1)
+                    exchange.create_market_order(trade_config['symbol'], 'buy', amount, params=tag_param)
+                elif current_position and current_position.get('side') == 'long':
+                    print("已有多头持仓，保持现状")
+                else:
+                    print("开多仓...")
+                    params = {**tag_param, 'takeProfit': {'triggerPrice': signal_data.get('take_profit'), 'price': signal_data.get('take_profit'), 'reduceOnly': True}, 'stopLoss': {'triggerPrice': signal_data.get('stop_loss'), 'price': signal_data.get('stop_loss'), 'reduceOnly': True}}
+                    exchange.create_market_order(trade_config['symbol'], 'buy', amount, params=params)
+
+            elif signal == 'SELL':
+                if current_position and current_position.get('side') == 'long':
+                    print("平多仓并开空仓...")
+                    exchange.create_market_order(trade_config['symbol'], 'sell', current_position.get('size'), params={**{'reduceOnly': True}, **tag_param})
+                    time.sleep(1)
+                    exchange.create_market_order(trade_config['symbol'], 'sell', amount, params=tag_param)
+                elif current_position and current_position.get('side') == 'short':
+                    exchange.create_market_order(trade_config['symbol'], 'buy', current_position.get('size'), params={**{'reduceOnly': True}, **tag_param})
+                    print("空头持仓已平仓")
+                else:
+                    print("开空仓...")
+                    params = {**tag_param, 'takeProfit': {'triggerPrice': signal_data.get('take_profit'), 'price': signal_data.get('take_profit'), 'reduceOnly': True}, 'stopLoss': {'triggerPrice': signal_data.get('stop_loss'), 'price': signal_data.get('stop_loss'), 'reduceOnly': True}}
+                    exchange.create_market_order(trade_config['symbol'], 'sell', amount, params=params)
+
+            print("订单执行成功")
+            time.sleep(2)
+            updated_position = get_current_position_fn()
+            print(f"更新后持仓: {updated_position}")
+
+            # 保存交易日志
+            try:
+                save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, operation_type, required_margin, "success", updated_position, extra={"order_id": "", "fee": 0})
+            except Exception:
+                pass
+
+            return updated_position
+
+        except Exception as e:
+            print(f"下单过程中发生错误: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, operation_type, required_margin, "failed")
+            except Exception:
+                pass
+            return None
+
+    except Exception as e:
+        print(f"执行交易失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 

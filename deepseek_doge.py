@@ -150,190 +150,24 @@ def analyze_with_deepseek(price_data):
 
 
 def execute_trade(signal_data, price_data):
-    """执行交易 - OKX版本（修复保证金检查）"""
-    global position
+    """Wrapper that delegates to common.execute_trade and preserves module-level globals.
 
-    current_position = get_current_position()
-
-    print(f"交易信号: {signal_data['signal']}")
-    print(f"信心程度: {signal_data['confidence']}")
-    print(f"理由: {signal_data['reason']}")
-    print(f"止损: ${signal_data['stop_loss']:,.5f}")
-    print(f"止盈: ${signal_data['take_profit']:,.5f}")
-    print(f"当前持仓: {current_position}")
-
-    # 风险管理：低信心信号不执行
-    if signal_data['confidence'] == 'LOW' and not TRADE_CONFIG['test_mode']:
-        print("⚠️ 低信心信号，跳过执行")
-        save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, "skip", order_status="skipped")
-        return
-
-    if TRADE_CONFIG['test_mode']:
-        print("测试模式 - 仅模拟交易")
-        # 记录测试模式下的日志
-        try:
-            save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type='test_mode', order_status='test')
-        except Exception as e:
-            print(f"保存测试模式日志失败: {e}")
-        return
-
-    try:
-        # 获取账户余额
-        balance = exchange.fetch_balance()
-        usdt_balance = balance['USDT']['free']
-
-        # 智能保证金检查
-        required_margin = 0
-        operation_type = None
-
-        if signal_data['signal'] == 'BUY':
-            if current_position and current_position['side'] == 'short':
-                # 平空仓 + 开多仓：需要额外保证金
-                required_margin = price_data['price'] * TRADE_CONFIG['amount'] / TRADE_CONFIG['leverage']
-                operation_type = "平空开多"
-            elif not current_position:
-                # 开多仓：需要保证金
-                required_margin = price_data['price'] * TRADE_CONFIG['amount'] / TRADE_CONFIG['leverage']
-                operation_type = "开多仓"
-            else:
-                # 已持有多仓：不需要额外保证金
-                required_margin = 0
-                operation_type = "保持多仓"
-
-        elif signal_data['signal'] == 'SELL':
-            if current_position and current_position['side'] == 'long':
-                # 平多仓 + 开空仓：需要额外保证金
-                required_margin = price_data['price'] * TRADE_CONFIG['amount'] / TRADE_CONFIG['leverage']
-                operation_type = "平多开空"
-            elif not current_position:
-                # 开空仓：需要保证金
-                required_margin = price_data['price'] * TRADE_CONFIG['amount'] / TRADE_CONFIG['leverage']
-                operation_type = "开空仓"
-            else:
-                # 已持有空仓：不需要额外保证金
-                required_margin = 0
-                operation_type = "保持空仓"
-
-        elif signal_data['signal'] == 'HOLD':
-            print("建议观望，不执行交易")
-            save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type='hold', order_status='held')
-            return
-
-        print(f"操作类型: {operation_type}, 需要保证金: {required_margin:.5f} USDT")
-
-        # 记录执行前的快照日志
-        try:
-            save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type=operation_type, required_margin=required_margin, order_status='precheck')
-        except Exception as e:
-            print(f"保存执行前日志失败: {e}")
-
-        # 只有在需要额外保证金时才检查
-        if required_margin > 0:
-            if required_margin > usdt_balance * 0.8:
-                print(f"⚠️ 保证金不足，跳过交易。需要: {required_margin:.5f} USDT, 可用: {usdt_balance:.5f} USDT")
-                save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, "skip", order_status="skipped")
-                return
-        else:
-            print("✅ 无需额外保证金，继续执行")
-
-        # 执行交易逻辑   tag 是我的经纪商api（不拿白不拿），不会影响大家返佣，介意可以删除
-        if signal_data['signal'] == 'BUY':
-            if current_position and current_position['side'] == 'short':
-                print("平空仓并开多仓...")
-                # 平空仓
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    current_position['size'],
-                    params={'reduceOnly': True, 'tag': settings.BROKER_TAG}
-                )
-                time.sleep(1)
-                # 开多仓
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    TRADE_CONFIG['amount'],
-                    params={'tag': settings.BROKER_TAG}
-                )
-            elif current_position and current_position['side'] == 'long':
-                print("已有多头持仓，保持现状")
-            else:
-                # 无持仓时开多仓
-                print("开多仓...")
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    TRADE_CONFIG['amount'],
-                    params={'tag': settings.BROKER_TAG, 'takeProfit': {
-                        'triggerPrice': signal_data['take_profit'],
-                        'price': signal_data['take_profit'],
-                        'reduceOnly': True
-                    },
-                    'stopLoss': {
-                        'triggerPrice': signal_data['stop_loss'],
-                        'price': signal_data['stop_loss'],
-                        'reduceOnly': True
-                        }}
-                )
-
-        elif signal_data['signal'] == 'SELL':
-            if current_position and current_position['side'] == 'long':
-                print("平多仓并开空仓...")
-                # 平多仓
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'sell',
-                    current_position['size'],
-                    params={'reduceOnly': True, 'tag': settings.BROKER_TAG}
-                )
-                time.sleep(1)
-                # 开空仓
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'sell',
-                    TRADE_CONFIG['amount'],
-                    params={'tag': settings.BROKER_TAG}
-                )
-            elif current_position and current_position['side'] == 'short':
-                # 平空仓
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    current_position['size'],
-                    params={'reduceOnly': True, 'tag': settings.BROKER_TAG}
-                )
-                print("空头持仓已平仓")
-            else:
-                # 无持仓时开空仓
-                print("开空仓...")
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'sell',
-                    TRADE_CONFIG['amount'],
-                    params={'tag': settings.BROKER_TAG,'takeProfit': {      # 止盈设置（价格下跌时触发）
-                        'triggerPrice': signal_data['take_profit'],  # 触发价（低于开仓价）
-                        'price': signal_data['take_profit'],
-                        'reduceOnly': True            # 仅平仓
-                            },
-                        'stopLoss': {        # 止损设置（价格上涨时触发）
-                         'triggerPrice': signal_data['stop_loss'],    # 触发价（高于开仓价）
-                        'price': signal_data['stop_loss'],
-                        'reduceOnly': True
-                         }}
-                )
-
-        print("订单执行成功")
-        time.sleep(2)
-        position = get_current_position()
-        print(f"更新后持仓: {position}")
-
-        # 保存交易日志
-        save_trade_log(price_data, deepseek_last_raw, signal_data, current_position, operation_type, required_margin, "success", position, extra={"order_id": "", "fee": 0})
-
-    except Exception as e:
-        print(f"订单执行失败: {e}")
-        import traceback
-        traceback.print_exc()
+    Keeps the original function signature used elsewhere in the script.
+    """
+    global position, deepseek_last_raw
+    updated = common.execute_trade(
+        exchange=exchange,
+        trade_config=TRADE_CONFIG,
+        signal_data=signal_data,
+        price_data=price_data,
+        get_current_position_fn=get_current_position,
+        save_trade_log_fn=save_trade_log,
+        deepseek_raw=deepseek_last_raw,
+        settings_module=settings
+    )
+    if updated is not None:
+        position = updated
+    return updated
 
 
 def analyze_with_deepseek_with_retry(price_data, max_retries=2):
