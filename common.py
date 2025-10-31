@@ -319,6 +319,33 @@ def safe_json_parse(json_str):
             return None
 
 
+# 新增公共函数：等待到下一个周期整点（默认15分钟）
+def wait_for_next_period(period_minutes=15):
+    """返回到下一个 period_minutes 分钟整点需要等待的秒数。
+
+    规则与原脚本一致：如果当前已接近整点（分钟模 period 为 0 且秒数 < 10），
+    则立即返回 0 以便立刻执行。
+    """
+    try:
+        now = datetime.now()
+        current_minute = now.minute
+        current_second = now.second
+
+        remainder = current_minute % period_minutes
+        if remainder == 0 and current_second < 10:
+            return 0
+
+        minutes_to_wait = period_minutes - remainder
+        seconds_to_wait = minutes_to_wait * 60 - current_second
+
+        print(f"🕒 等待 {minutes_to_wait} 分 {60 - current_second} 秒到整点...")
+        return seconds_to_wait
+    except Exception as e:
+        # 在任何意外情况下，返回一个较短的回退等待时间，避免阻塞
+        print(f"计算等待时间失败: {e}")
+        return 5
+
+
 def create_fallback_signal(price_data):
     return {
         "signal": "HOLD",
@@ -328,4 +355,3 @@ def create_fallback_signal(price_data):
         "confidence": "LOW",
         "is_fallback": True
     }
-

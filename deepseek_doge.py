@@ -468,21 +468,8 @@ def analyze_with_deepseek_with_retry(price_data, max_retries=2):
 
 
 def wait_for_next_period():
-    """等待到下一个15分钟整点"""
-    now = datetime.now()
-    current_minute = now.minute
-    current_second = now.second
-
-    # 计算到下一个15分钟整点的等待时间
-    remainder = current_minute % 15
-    if remainder == 0 and current_second < 10:  # 整点前10秒内立即执行
-        return 0
-
-    minutes_to_wait = 15 - remainder
-    seconds_to_wait = minutes_to_wait * 60 - current_second
-
-    print(f"🕒 等待 {minutes_to_wait} 分 {60 - current_second} 秒到整点...")
-    return seconds_to_wait
+    """Thin wrapper that delegates to common.wait_for_next_period(period_minutes=15)."""
+    return common.wait_for_next_period(15)
 
 
 def trading_bot():
