@@ -23,7 +23,7 @@ TRADE_CONFIG = {
     'amount': 4,  # 交易数量 (XRP)
     'leverage': 5,  # 杠杆倍数
     'timeframe': '15m',  # 使用15分钟K线
-    'test_mode': False,  # 测试模式
+    'test_mode': settings.TRADE_TEST_MODE,  # 可通过环境变量 TRADE_TEST_MODE 覆盖
     'data_points': 96,  # 24小时数据（96根15分钟K线）
     'analysis_periods': {
         'short_term': 20,  # 短期均线

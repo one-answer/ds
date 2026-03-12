@@ -74,6 +74,14 @@
       gap: 10px;
     }
 
+    .global-mode-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
     .chip {
       border: 1px solid var(--card-border);
       background: var(--card);
@@ -220,6 +228,24 @@
       margin-bottom: 10px;
     }
 
+    .mode-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .mode-select {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.82rem;
+    }
+
     .log-view {
       margin-top: 2px;
       padding: 10px;
@@ -257,6 +283,7 @@
 
       .toolbar {
         width: 100%;
+        flex-wrap: wrap;
       }
 
       .meta-grid {
@@ -274,6 +301,13 @@
     </div>
     <div class="toolbar">
       <div class="chip" id="last-sync">Last sync: --</div>
+      <div class="global-mode-wrap">
+        <span>Global start mode:</span>
+        <select class="mode-select" id="global-mode">
+          <option value="live">Live</option>
+          <option value="paper">Simulated</option>
+        </select>
+      </div>
       <button class="btn btn-refresh" id="refresh">Refresh</button>
     </div>
   </header>
@@ -287,6 +321,40 @@
   const toast = document.getElementById("toast");
   const refreshBtn = document.getElementById("refresh");
   const lastSync = document.getElementById("last-sync");
+  const globalModeSelect = document.getElementById("global-mode");
+  const GLOBAL_MODE_KEY = "ds-global-start-mode";
+
+  function normalizeMode(value) {
+    return value === "paper" ? "paper" : "live";
+  }
+
+  function getGlobalMode() {
+    try {
+      return normalizeMode(localStorage.getItem(GLOBAL_MODE_KEY));
+    } catch (err) {
+      return "live";
+    }
+  }
+
+  function setGlobalMode(mode) {
+    const normalized = normalizeMode(mode);
+    try {
+      localStorage.setItem(GLOBAL_MODE_KEY, normalized);
+    } catch (err) {
+      // ignore storage errors
+    }
+    return normalized;
+  }
+
+  function applyGlobalModeToCards(mode) {
+    const normalized = normalizeMode(mode);
+    cards.querySelectorAll(".card").forEach((card) => {
+      const startBtn = card.querySelector("[data-action='start']");
+      const modeSelect = card.querySelector("[data-role='mode']");
+      if (!startBtn || !modeSelect || startBtn.disabled) return;
+      modeSelect.value = normalized;
+    });
+  }
 
   function showToast(message) {
     toast.textContent = message;
@@ -310,6 +378,9 @@
   function cardTemplate(item) {
     const statusClass = item.running ? "status-running" : "status-stopped";
     const statusText = item.running ? "Running" : "Stopped";
+    const mode = item.mode === "paper" ? "paper" : "live";
+    const modeLabel = mode === "paper" ? "Simulated" : "Live";
+    const startMode = item.running ? mode : getGlobalMode();
     const startedAt = item.started_at ? new Date(item.started_at).toLocaleString() : "-";
 
     return `
@@ -336,6 +407,18 @@
             <div class="meta-k">Log File</div>
             <div class="meta-v">${item.log}</div>
           </div>
+          <div class="meta-box">
+            <div class="meta-k">Trade Mode</div>
+            <div class="meta-v">${modeLabel}</div>
+          </div>
+        </div>
+
+        <div class="mode-row">
+          <span>Start mode:</span>
+          <select class="mode-select" data-role="mode" ${item.running ? "disabled" : ""}>
+            <option value="live" ${startMode === "live" ? "selected" : ""}>Live (Real Trading)</option>
+            <option value="paper" ${startMode === "paper" ? "selected" : ""}>Simulated (Paper)</option>
+          </select>
         </div>
 
         <div class="actions">
@@ -359,8 +442,13 @@
     }
   }
 
-  async function control(name, action) {
-    const response = await fetch(`/api/strategies/${name}/${action}`, {method: "POST"});
+  async function control(name, action, mode = "live") {
+    const fetchOptions = {method: "POST"};
+    if (action === "start") {
+      fetchOptions.headers = {"Content-Type": "application/json"};
+      fetchOptions.body = JSON.stringify({mode});
+    }
+    const response = await fetch(`/api/strategies/${name}/${action}`, fetchOptions);
     const body = await response.json();
     showToast(body.message || `${action} completed`);
     await render();
@@ -383,10 +471,12 @@
 
     const name = card.dataset.name;
     const action = button.dataset.action;
+    const modeSelect = card.querySelector("[data-role='mode']");
+    const selectedMode = modeSelect ? modeSelect.value : "live";
 
     try {
       if (action === "start" || action === "stop") {
-        await control(name, action);
+        await control(name, action, selectedMode);
       } else if (action === "logs") {
         await loadLogs(name);
       }
@@ -396,6 +486,13 @@
   });
 
   refreshBtn.addEventListener("click", () => render(true));
+
+  globalModeSelect.value = getGlobalMode();
+  globalModeSelect.addEventListener("change", (event) => {
+    const mode = setGlobalMode(event.target.value);
+    applyGlobalModeToCards(mode);
+    showToast(`Global start mode set to ${mode === "paper" ? "Simulated" : "Live"}`);
+  });
 
   render(true);
   setInterval(render, 6000);

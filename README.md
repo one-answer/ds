@@ -116,6 +116,7 @@ python web_manager.py
 页面能力：
 - 查看 DOGE / XRP 当前运行状态与 PID
 - 一键启动或停止某类虚拟货币策略
+- 启动前可点选交易模式：`Live (Real Trading)` 或 `Simulated (Paper)`
 - 查看每个策略最近日志（`app_doge.log` / `app_xrp.log`）
 
 可选环境变量：

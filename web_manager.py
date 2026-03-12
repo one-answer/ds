@@ -26,6 +26,15 @@ STRATEGIES = {
     },
 }
 
+MODE_ALIASES = {
+    "live": "live",
+    "real": "live",
+    "paper": "paper",
+    "sim": "paper",
+    "simulated": "paper",
+    "test": "paper",
+}
+
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
 
 
@@ -100,16 +109,25 @@ def _strategy_status(name: str, state: dict) -> dict:
         "running": running,
         "pid": pid,
         "started_at": current.get("started_at"),
+        "mode": current.get("mode", "live"),
     }
 
 
-def _start_strategy(name: str) -> tuple[bool, str, dict]:
+def _normalize_mode(value) -> str:
+    if value is None:
+        return "live"
+    return MODE_ALIASES.get(str(value).strip().lower(), "live")
+
+
+def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
+    mode = _normalize_mode(mode)
     state = _refresh_state(load_state())
     status = _strategy_status(name, state)
     if status["running"]:
         state[name] = {
             "pid": status["pid"],
             "started_at": state.get(name, {}).get("started_at") or _utc_now_iso(),
+            "mode": state.get(name, {}).get("mode", "live"),
         }
         save_state(state)
         return False, f"{name} already running", status
@@ -118,18 +136,24 @@ def _start_strategy(name: str) -> tuple[bool, str, dict]:
     log_path = BASE_DIR / STRATEGIES[name]["log"]
 
     with open(log_path, "a", encoding="utf-8") as log_file:
+        child_env = {
+            **os.environ,
+            "PYTHONUNBUFFERED": "1",
+            # Strategy scripts read this variable from settings.TRADE_TEST_MODE.
+            "TRADE_TEST_MODE": "1" if mode == "paper" else "0",
+        }
         proc = subprocess.Popen(
             [sys.executable, str(script_path)],
             cwd=str(BASE_DIR),
             stdout=log_file,
             stderr=subprocess.STDOUT,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env=child_env,
             start_new_session=True,
         )
 
-    state[name] = {"pid": proc.pid, "started_at": _utc_now_iso()}
+    state[name] = {"pid": proc.pid, "started_at": _utc_now_iso(), "mode": mode}
     save_state(state)
-    return True, f"{name} started", _strategy_status(name, state)
+    return True, f"{name} started in {mode} mode", _strategy_status(name, state)
 
 
 def _stop_strategy(name: str, timeout_seconds: int = 8) -> tuple[bool, str, dict]:
@@ -188,7 +212,10 @@ def api_start(name: str):
     if name not in STRATEGIES:
         return jsonify({"error": f"unknown strategy: {name}"}), 404
 
-    changed, message, status = _start_strategy(name)
+    body = request.get_json(silent=True) or {}
+    mode = _normalize_mode(body.get("mode"))
+
+    changed, message, status = _start_strategy(name, mode=mode)
     return jsonify({"ok": changed, "message": message, "status": status})
 
 

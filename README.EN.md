@@ -108,6 +108,7 @@ Default URL: `http://127.0.0.1:8080`
 Features:
 - Check DOGE / XRP runtime status and PID
 - Start or stop a selected crypto strategy from the UI
+- Choose trading mode before start: `Live (Real Trading)` or `Simulated (Paper)`
 - View latest logs for each strategy (`app_doge.log` / `app_xrp.log`)
 
 Optional environment variables:
