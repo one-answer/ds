@@ -72,6 +72,13 @@ DEEPSEEK_API_KEY=
 OKX_API_KEY=
 OKX_SECRET=
 OKX_PASSWORD=
+
+# 可选：MySQL 日志存储（配置后优先写入 MySQL）
+MYSQL_USERNAME=
+MYSQL_PASSWORD=
+MYSQL_HOST=
+MYSQL_PORT=
+MYSQL_DB=
 ```
 
 请妥善保管密钥，不要提交到版本控制。项目根已包含 `.gitignore`，请确保 `.env` 被忽略。
@@ -117,7 +124,15 @@ python web_manager.py
 - `WEB_MANAGER_DEBUG`（`1` 开启 Flask debug）
 
 ## 本地日志
-运行期间脚本会将交易/事件记录到 `trading_logs.db`（SQLite）。可用 SQLite 工具或脚本查看/导出日志。
+运行期间脚本会优先将交易/事件记录到 MySQL（当 `MYSQL_*` 配置完整时）；否则回退到 `trading_logs.db`（SQLite）。
+
+若是首次接入 MySQL，可先执行一次建表：
+
+```bash
+python init_mysql_tables.py
+```
+
+会自动创建数据库（若不存在）和 `trade_logs` 表。
 
 ## 部署建议（可选）
 - 推荐在稳定的 Linux 服务器（例如 Ubuntu）上部署。生产环境可使用 `tmux`/`systemd`/`pm2` 或其他进程管理器保持脚本长期运行。

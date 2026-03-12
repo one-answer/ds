@@ -1,64 +1,211 @@
 import json
+import os
 import re
 from datetime import datetime
 import sqlite3
 import pandas as pd
 import time
 
+import pymysql
+
+
+TRADE_LOG_COLUMNS = [
+    "created_at", "symbol", "timeframe", "price", "price_change", "deepseek_raw", "signal", "reason",
+    "stop_loss", "take_profit", "confidence", "current_position", "operation_type", "required_margin",
+    "order_status", "updated_position", "extra"
+]
+
+
+def _mysql_config_from_env():
+    cfg = {
+        "user": os.getenv("MYSQL_USERNAME"),
+        "password": os.getenv("MYSQL_PASSWORD"),
+        "host": os.getenv("MYSQL_HOST"),
+        "port": os.getenv("MYSQL_PORT"),
+        "database": os.getenv("MYSQL_DB"),
+    }
+    if not all(cfg.values()):
+        return None
+    try:
+        cfg["port"] = int(cfg["port"])
+    except Exception:
+        print("MYSQL_PORT 不是有效整数，将回退 SQLite")
+        return None
+    return cfg
+
+
+def _mysql_connect(cfg, with_database=True):
+    kwargs = {
+        "host": cfg["host"],
+        "port": cfg["port"],
+        "user": cfg["user"],
+        "password": cfg["password"],
+        "charset": "utf8mb4",
+        "autocommit": False,
+    }
+    if with_database:
+        kwargs["database"] = cfg["database"]
+
+    # TiDB Cloud requires secure transport. Enabled by default unless explicitly disabled.
+    if os.getenv("MYSQL_SSL_DISABLED", "0") != "1":
+        kwargs["ssl"] = {"ssl": {}}
+
+    return pymysql.connect(**kwargs)
+
+
+def _build_trade_log_values(trade_config, price_data=None, deepseek_raw=None, signal_data=None, current_position=None,
+                            operation_type=None, required_margin=None, order_status=None, updated_position=None,
+                            extra=None):
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    symbol = trade_config.get('symbol')
+    timeframe = trade_config.get('timeframe')
+    price = float(price_data['price']) if price_data and 'price' in price_data else None
+    price_change = float(price_data['price_change']) if price_data and 'price_change' in price_data else None
+    deepseek_raw_txt = deepseek_raw if deepseek_raw else None
+
+    signal = signal_data.get('signal') if signal_data else None
+    reason = signal_data.get('reason') if signal_data else None
+    stop_loss = float(signal_data.get('stop_loss')) if signal_data and signal_data.get('stop_loss') is not None else None
+    take_profit = float(signal_data.get('take_profit')) if signal_data and signal_data.get('take_profit') is not None else None
+    confidence = signal_data.get('confidence') if signal_data else None
+
+    return {
+        "created_at": created_at,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "price": price,
+        "price_change": price_change,
+        "deepseek_raw": deepseek_raw_txt,
+        "signal": signal,
+        "reason": reason,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "confidence": confidence,
+        "current_position": json.dumps(current_position) if current_position is not None else None,
+        "operation_type": operation_type,
+        "required_margin": required_margin,
+        "order_status": order_status,
+        "updated_position": json.dumps(updated_position) if updated_position is not None else None,
+        "extra": json.dumps(extra) if extra is not None else None,
+    }
+
+
+def _create_trade_logs_table_sqlite(cur):
+    cur.execute('''
+                CREATE TABLE IF NOT EXISTS trade_logs
+                (
+                    id
+                    INTEGER
+                    PRIMARY
+                    KEY
+                    AUTOINCREMENT,
+                    created_at
+                    TEXT,
+                    symbol
+                    TEXT,
+                    timeframe
+                    TEXT,
+                    price
+                    REAL,
+                    price_change
+                    REAL,
+                    deepseek_raw
+                    TEXT,
+                    signal
+                    TEXT,
+                    reason
+                    TEXT,
+                    stop_loss
+                    REAL,
+                    take_profit
+                    REAL,
+                    confidence
+                    TEXT,
+                    current_position
+                    TEXT,
+                    operation_type
+                    TEXT,
+                    required_margin
+                    REAL,
+                    order_status
+                    TEXT,
+                    updated_position
+                    TEXT,
+                    extra
+                    TEXT
+                )
+                ''')
+
+
+def _create_trade_logs_table_mysql(cur):
+    cur.execute('''
+                CREATE TABLE IF NOT EXISTS trade_logs
+                (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    created_at DATETIME,
+                    symbol VARCHAR(64),
+                    timeframe VARCHAR(32),
+                    price DOUBLE,
+                    price_change DOUBLE,
+                    deepseek_raw LONGTEXT,
+                    signal VARCHAR(32),
+                    reason TEXT,
+                    stop_loss DOUBLE,
+                    take_profit DOUBLE,
+                    confidence VARCHAR(32),
+                    current_position JSON,
+                    operation_type VARCHAR(64),
+                    required_margin DOUBLE,
+                    order_status VARCHAR(128),
+                    updated_position JSON,
+                    extra JSON,
+                    INDEX idx_symbol_created_at (symbol, created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ''')
+
 
 def init_db(db_path):
-    """Initialize the SQLite database and create table if not exists."""
+    """Initialize database schema. Use MySQL when MYSQL_* is set; otherwise fallback to SQLite."""
+    mysql_cfg = _mysql_config_from_env()
+    if mysql_cfg:
+        conn = None
+        bootstrap_conn = None
+        try:
+            # Create database first, then create trade_logs table.
+            bootstrap_conn = _mysql_connect(mysql_cfg, with_database=False)
+            with bootstrap_conn.cursor() as cur:
+                cur.execute(f"CREATE DATABASE IF NOT EXISTS `{mysql_cfg['database']}` CHARACTER SET utf8mb4")
+            bootstrap_conn.commit()
+
+            conn = _mysql_connect(mysql_cfg, with_database=True)
+            with conn.cursor() as cur:
+                _create_trade_logs_table_mysql(cur)
+            conn.commit()
+            print(f"MySQL 数据库已就绪: {mysql_cfg['database']}.trade_logs")
+            return
+        except Exception as e:
+            print(f"MySQL 初始化失败，将回退 SQLite: {e}")
+        finally:
+            try:
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
+            try:
+                if bootstrap_conn:
+                    bootstrap_conn.close()
+            except Exception:
+                pass
+
     conn = None
     try:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        cur.execute('''
-                    CREATE TABLE IF NOT EXISTS trade_logs
-                    (
-                        id
-                        INTEGER
-                        PRIMARY
-                        KEY
-                        AUTOINCREMENT,
-                        created_at
-                        TEXT,
-                        symbol
-                        TEXT,
-                        timeframe
-                        TEXT,
-                        price
-                        REAL,
-                        price_change
-                        REAL,
-                        deepseek_raw
-                        TEXT,
-                        signal
-                        TEXT,
-                        reason
-                        TEXT,
-                        stop_loss
-                        REAL,
-                        take_profit
-                        REAL,
-                        confidence
-                        TEXT,
-                        current_position
-                        TEXT,
-                        operation_type
-                        TEXT,
-                        required_margin
-                        REAL,
-                        order_status
-                        TEXT,
-                        updated_position
-                        TEXT,
-                        extra
-                        TEXT
-                    )
-                    ''')
+        _create_trade_logs_table_sqlite(cur)
         conn.commit()
+        print(f"SQLite 数据库已就绪: {db_path}")
     except Exception as e:
-        print(f"初始化数据库失败: {e}")
+        print(f"初始化 SQLite 数据库失败: {e}")
     finally:
         try:
             if conn:
@@ -69,55 +216,55 @@ def init_db(db_path):
 
 def save_trade_log(db_path, trade_config, price_data=None, deepseek_raw=None, signal_data=None, current_position=None,
                    operation_type=None, required_margin=None, order_status=None, updated_position=None, extra=None):
-    """Save a structured log row into SQLite."""
+    """Save a structured log row into MySQL (preferred) or SQLite fallback."""
+    values = _build_trade_log_values(
+        trade_config,
+        price_data,
+        deepseek_raw,
+        signal_data,
+        current_position,
+        operation_type,
+        required_margin,
+        order_status,
+        updated_position,
+        extra,
+    )
+
+    mysql_cfg = _mysql_config_from_env()
+    if mysql_cfg:
+        conn = None
+        try:
+            conn = _mysql_connect(mysql_cfg, with_database=True)
+            cols = ", ".join(TRADE_LOG_COLUMNS)
+            placeholders = ", ".join(["%s"] * len(TRADE_LOG_COLUMNS))
+            sql = f"INSERT INTO trade_logs ({cols}) VALUES ({placeholders})"
+            with conn.cursor() as cur:
+                cur.execute(sql, tuple(values[col] for col in TRADE_LOG_COLUMNS))
+            conn.commit()
+            return
+        except Exception as e:
+            print(f"保存日志到 MySQL 失败: {e}")
+        finally:
+            try:
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
+
     conn = None
     try:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-
-        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        symbol = trade_config.get('symbol')
-        timeframe = trade_config.get('timeframe')
-        price = float(price_data['price']) if price_data and 'price' in price_data else None
-        price_change = float(price_data['price_change']) if price_data and 'price_change' in price_data else None
-        deepseek_raw_txt = deepseek_raw if deepseek_raw else None
-
-        signal = signal_data.get('signal') if signal_data else None
-        reason = signal_data.get('reason') if signal_data else None
-        stop_loss = float(signal_data.get('stop_loss')) if signal_data and signal_data.get(
-            'stop_loss') is not None else None
-        take_profit = float(signal_data.get('take_profit')) if signal_data and signal_data.get(
-            'take_profit') is not None else None
-        confidence = signal_data.get('confidence') if signal_data else None
-
         cur.execute('''
                     INSERT INTO trade_logs (created_at, symbol, timeframe, price, price_change, deepseek_raw, signal,
                                             reason, stop_loss, take_profit, confidence,
                                             current_position, operation_type, required_margin, order_status,
                                             updated_position, extra)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
-                        created_at,
-                        symbol,
-                        timeframe,
-                        price,
-                        price_change,
-                        deepseek_raw_txt,
-                        signal,
-                        reason,
-                        stop_loss,
-                        take_profit,
-                        confidence,
-                        json.dumps(current_position) if current_position is not None else None,
-                        operation_type,
-                        required_margin,
-                        order_status,
-                        json.dumps(updated_position) if updated_position is not None else None,
-                        json.dumps(extra) if extra is not None else None
-                    ))
+                    ''', tuple(values[col] for col in TRADE_LOG_COLUMNS))
         conn.commit()
     except Exception as e:
-        print(f"保存日志失败: {e}")
+        print(f"保存日志到 SQLite 失败: {e}")
     finally:
         try:
             if conn:

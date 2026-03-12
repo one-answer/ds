@@ -66,6 +66,13 @@ DEEPSEEK_API_KEY=
 OKX_API_KEY=
 OKX_SECRET=
 OKX_PASSWORD=
+
+# Optional: MySQL log storage (preferred when configured)
+MYSQL_USERNAME=
+MYSQL_PASSWORD=
+MYSQL_HOST=
+MYSQL_PORT=
+MYSQL_DB=
 ```
 
 Keep credentials secure and do not commit them to version control.
@@ -109,7 +116,15 @@ Optional environment variables:
 - `WEB_MANAGER_DEBUG` (`1` enables Flask debug)
 
 ## Local logs
-During runtime the scripts write trades/events into `trading_logs.db` (SQLite). Use sqlite3 or a small script to query/export logs.
+During runtime the scripts write trades/events to MySQL first when `MYSQL_*` variables are fully configured; otherwise they fall back to `trading_logs.db` (SQLite).
+
+For first-time MySQL setup, run once:
+
+```bash
+python init_mysql_tables.py
+```
+
+This creates the database (if missing) and the `trade_logs` table automatically.
 
 ## Deployment suggestions (optional)
 - Recommended to deploy on a stable Linux server (e.g., Ubuntu). Use `tmux`/`systemd`/`pm2` or other process managers to keep scripts running.
