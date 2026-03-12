@@ -6,128 +6,285 @@
   <title>Crypto Bot Manager</title>
   <style>
     :root {
-      color-scheme: light;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --bg: #0b1020;
+      --bg-soft: #121931;
+      --card: rgba(255, 255, 255, 0.06);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --text: #e6ebff;
+      --muted: #a8b2d9;
+      --primary: #5b8cff;
+      --primary-hover: #4a7af3;
+      --danger: #ff5c7a;
+      --danger-hover: #ef4c69;
+      --neutral: #25304d;
+      --success-bg: rgba(29, 210, 136, 0.18);
+      --success-text: #8ff5c5;
+      --danger-bg: rgba(255, 92, 122, 0.2);
+      --danger-text: #ffb4c2;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color-scheme: dark;
     }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      background: #f5f7fb;
-      color: #1f2937;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% -10%, #34498f 0%, transparent 38%),
+        radial-gradient(circle at 92% 0%, #3e225d 0%, transparent 35%),
+        linear-gradient(145deg, var(--bg) 0%, #0a0f1e 70%);
+      min-height: 100vh;
     }
+
     .container {
-      max-width: 980px;
-      margin: 24px auto;
-      padding: 0 16px 24px;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 24px 16px 36px;
     }
-    .header {
+
+    .topbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      gap: 12px;
+      margin-bottom: 14px;
     }
-    h1 {
+
+    .title-wrap h1 {
       margin: 0;
-      font-size: 1.5rem;
+      font-size: clamp(1.35rem, 2.7vw, 1.8rem);
+      letter-spacing: 0.2px;
     }
+
+    .subtitle {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chip {
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      color: var(--muted);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      padding: 9px 13px;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.2s ease, background 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-refresh,
+    .btn-logs {
+      background: var(--neutral);
+      color: var(--text);
+    }
+
+    .btn-start {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-start:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-stop {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-stop:hover {
+      background: var(--danger-hover);
+    }
+
+    .toast {
+      margin-bottom: 14px;
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      background: rgba(31, 126, 255, 0.18);
+      color: #d7e7ff;
+      display: none;
+    }
+
     .grid {
       display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
     }
+
     .card {
-      background: #fff;
-      border-radius: 10px;
+      border-radius: 16px;
       padding: 14px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
     }
-    .row {
+
+    .card-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
     }
-    .pill {
-      font-size: 12px;
-      padding: 2px 8px;
+
+    .card-title {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .status-pill {
+      padding: 4px 10px;
       border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
       border: 1px solid transparent;
     }
-    .running {
-      color: #0f5132;
-      background: #d1e7dd;
-      border-color: #badbcc;
+
+    .status-running {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border-color: rgba(143, 245, 197, 0.36);
     }
-    .stopped {
-      color: #842029;
-      background: #f8d7da;
-      border-color: #f5c2c7;
+
+    .status-stopped {
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      border-color: rgba(255, 180, 194, 0.35);
     }
-    button {
-      border: 0;
-      border-radius: 8px;
-      padding: 6px 10px;
-      cursor: pointer;
-      margin-right: 6px;
-      font-weight: 600;
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
     }
-    button.start {
-      color: #fff;
-      background: #2563eb;
-    }
-    button.stop {
-      color: #fff;
-      background: #dc2626;
-    }
-    button.logs {
-      background: #e5e7eb;
-      color: #111827;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .meta {
-      font-size: 12px;
-      color: #6b7280;
-      line-height: 1.6;
-    }
-    .log-view {
-      margin-top: 8px;
-      background: #111827;
-      color: #d1d5db;
-      border-radius: 8px;
+
+    .meta-box {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.18);
       padding: 8px;
+      min-height: 56px;
+    }
+
+    .meta-k {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-bottom: 3px;
+    }
+
+    .meta-v {
+      color: var(--text);
+      font-size: 0.84rem;
+      word-break: break-word;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .log-view {
+      margin-top: 2px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: rgba(2, 6, 22, 0.78);
+      color: #c9d6ff;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      min-height: 120px;
+      font-size: 0.74rem;
+      line-height: 1.45;
+      min-height: 132px;
       max-height: 280px;
       overflow: auto;
       white-space: pre-wrap;
     }
-    .toast {
-      margin: 10px 0 16px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      background: #e0f2fe;
-      color: #0c4a6e;
-      display: none;
+
+    .skeleton {
+      border-radius: 10px;
+      background: linear-gradient(100deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.18) 36%, rgba(255, 255, 255, 0.06) 65%);
+      background-size: 220% 100%;
+      animation: shimmer 1.5s infinite linear;
+      min-height: 180px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -30% 0; }
+    }
+
+    @media (max-width: 740px) {
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .toolbar {
+        width: 100%;
+      }
+
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <h1>Crypto Bot Manager</h1>
-    <button class="logs" id="refresh">Refresh</button>
-  </div>
+  <header class="topbar">
+    <div class="title-wrap">
+      <h1>Crypto Bot Manager</h1>
+      <div class="subtitle">Control bot runtime and inspect logs in one place</div>
+    </div>
+    <div class="toolbar">
+      <div class="chip" id="last-sync">Last sync: --</div>
+      <button class="btn btn-refresh" id="refresh">Refresh</button>
+    </div>
+  </header>
+
   <div class="toast" id="toast"></div>
-  <div class="grid" id="cards"></div>
+  <section class="grid" id="cards"></section>
 </div>
 
 <script>
   const cards = document.getElementById("cards");
   const toast = document.getElementById("toast");
+  const refreshBtn = document.getElementById("refresh");
+  const lastSync = document.getElementById("last-sync");
 
   function showToast(message) {
     toast.textContent = message;
@@ -135,54 +292,75 @@
     clearTimeout(showToast._timer);
     showToast._timer = setTimeout(() => {
       toast.style.display = "none";
-    }, 2200);
+    }, 2400);
+  }
+
+  function setLoading() {
+    cards.innerHTML = "<div class='skeleton'></div><div class='skeleton'></div>";
   }
 
   async function fetchStrategies() {
     const response = await fetch("/api/strategies");
-    if (!response.ok) throw new Error("failed to load strategies");
+    if (!response.ok) throw new Error("Failed to load strategies");
     return response.json();
   }
 
   function cardTemplate(item) {
-    const statusClass = item.running ? "running" : "stopped";
+    const statusClass = item.running ? "status-running" : "status-stopped";
     const statusText = item.running ? "Running" : "Stopped";
     const startedAt = item.started_at ? new Date(item.started_at).toLocaleString() : "-";
 
     return `
-      <div class="card" data-name="${item.name}">
-        <div class="row">
-          <strong>${item.display}</strong>
-          <span class="pill ${statusClass}">${statusText}</span>
+      <article class="card" data-name="${item.name}">
+        <div class="card-head">
+          <h3 class="card-title">${item.display}</h3>
+          <span class="status-pill ${statusClass}">${statusText}</span>
         </div>
-        <div class="meta">
-          Script: ${item.script}<br>
-          PID: ${item.pid || "-"}<br>
-          Started at: ${startedAt}<br>
-          Log file: ${item.log}
+
+        <div class="meta-grid">
+          <div class="meta-box">
+            <div class="meta-k">Script</div>
+            <div class="meta-v">${item.script}</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-k">PID</div>
+            <div class="meta-v">${item.pid || "-"}</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-k">Started At</div>
+            <div class="meta-v">${startedAt}</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-k">Log File</div>
+            <div class="meta-v">${item.log}</div>
+          </div>
         </div>
-        <div style="margin-top: 10px;">
-          <button class="start" data-action="start" ${item.running ? "disabled" : ""}>Start</button>
-          <button class="stop" data-action="stop" ${item.running ? "" : "disabled"}>Stop</button>
-          <button class="logs" data-action="logs">Load Logs</button>
+
+        <div class="actions">
+          <button class="btn btn-start" data-action="start" ${item.running ? "disabled" : ""}>Start</button>
+          <button class="btn btn-stop" data-action="stop" ${item.running ? "" : "disabled"}>Stop</button>
+          <button class="btn btn-logs" data-action="logs">Load Logs</button>
         </div>
+
         <div class="log-view" id="log-${item.name}">Log preview is empty.</div>
-      </div>`;
+      </article>`;
   }
 
-  async function render() {
+  async function render(showLoader = false) {
+    if (showLoader) setLoading();
     try {
       const list = await fetchStrategies();
       cards.innerHTML = list.map(cardTemplate).join("");
+      lastSync.textContent = `Last sync: ${new Date().toLocaleTimeString()}`;
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message || "Load failed");
     }
   }
 
   async function control(name, action) {
     const response = await fetch(`/api/strategies/${name}/${action}`, {method: "POST"});
     const body = await response.json();
-    showToast(body.message || `${action} done`);
+    showToast(body.message || `${action} completed`);
     await render();
   }
 
@@ -211,13 +389,13 @@
         await loadLogs(name);
       }
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message || "Operation failed");
     }
   });
 
-  document.getElementById("refresh").addEventListener("click", render);
+  refreshBtn.addEventListener("click", () => render(true));
 
-  render();
+  render(true);
   setInterval(render, 6000);
 </script>
 </body>
