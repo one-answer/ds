@@ -18,6 +18,7 @@
 ## 快速参考
 - 启动通用 / DOGE 脚本：`./run_crypto.sh doge`
 - 启动 XRP 脚本：`./run_crypto.sh xrp`
+- 启动页面管理：`python web_manager.py`（默认 `http://127.0.0.1:8080`）
 - 配置：在项目根放置 `.env`（见下）
 - 本地日志：`trading_logs.db`（SQLite）
 
@@ -27,6 +28,8 @@
 - `deepseek_ok_plus.py` — 核心逻辑（通用）
 - `deepseek_ok_plus_xrp.py` — XRP 专用逻辑
 - `run_crypto.sh` — 统一的启动脚本，接受参数 `doge` 或 `xrp`，负责环境准备、依赖安装、停止/启动进程并写日志
+- `web_manager.py` — 页面化管理入口，提供策略启动/停止/状态与日志接口
+- `templates/index.html` — Web 管理页面
 - `requirements.txt` — Python 依赖
 - `.env` — 配置文件（示例见下方，须在运行前新建）
 - `trading_logs.db` — 本地 SQLite 日志/记录（运行时生成/更新）
@@ -93,6 +96,25 @@ OKX_PASSWORD=
 - 若你之前使用 `./run_doge.sh` 或 `./run_xrp.sh`，请改为使用 `./run_crypto.sh doge` 或 `./run_crypto.sh xrp`。
 
 这些脚本会读取同目录下的 `.env` 配置并执行相应策略。若要在后台运行，可使用 `nohup` 或 `tmux`/`screen`，或者在生产服务器上用进程管理器（例如 `systemd`、`pm2` 等）。
+
+## 使用（页面可视化管理）
+安装依赖后启动 Web 管理服务：
+
+```bash
+python web_manager.py
+```
+
+默认访问地址：`http://127.0.0.1:8080`
+
+页面能力：
+- 查看 DOGE / XRP 当前运行状态与 PID
+- 一键启动或停止某类虚拟货币策略
+- 查看每个策略最近日志（`app_doge.log` / `app_xrp.log`）
+
+可选环境变量：
+- `WEB_MANAGER_HOST`（默认 `127.0.0.1`）
+- `WEB_MANAGER_PORT`（默认 `8080`）
+- `WEB_MANAGER_DEBUG`（`1` 开启 Flask debug）
 
 ## 本地日志
 运行期间脚本会将交易/事件记录到 `trading_logs.db`（SQLite）。可用 SQLite 工具或脚本查看/导出日志。

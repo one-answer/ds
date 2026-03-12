@@ -58,6 +58,7 @@ htmlcov/
 *.pid
 *.seed
 *.pid.lock
+process_state.json
 
 # Environment variables / secrets
 .env

@@ -14,6 +14,7 @@ Summary
 |---|---|
 | Start general / DOGE | `./run_crypto.sh doge` |
 | Start XRP script | `./run_crypto.sh xrp` |
+| Start web manager | `python web_manager.py` |
 | Configuration file | `.env` (project root) |
 | Local logs | `trading_logs.db` (SQLite) |
 
@@ -21,6 +22,8 @@ Summary
 - `deepseek_ok_plus.py` — Core logic (general)
 - `deepseek_ok_plus_xrp.py` — XRP-specific logic
 - `run_crypto.sh` — Unified runner script. Accepts `doge` or `xrp`, prepares environment, installs dependencies, stops previous process (if any), and starts the selected script with logs.
+- `web_manager.py` — Web control service to start/stop strategies and read logs.
+- `templates/index.html` — Web dashboard page.
 - `requirements.txt` — Python dependencies
 - `.env` — Configuration file (create before running)
 - `trading_logs.db` — Local SQLite logs/records (generated/updated at runtime)
@@ -85,6 +88,25 @@ Migration note:
 - If you previously used `./run_doge.sh` or `./run_xrp.sh`, please switch to `./run_crypto.sh doge` or `./run_crypto.sh xrp`.
 
 The scripts load configuration from `.env` and run the corresponding strategy. To run in background, use `nohup`, `tmux`/`screen`, or a process manager on production servers.
+
+## Usage (web visual manager)
+After installing dependencies, start the web manager:
+
+```bash
+python web_manager.py
+```
+
+Default URL: `http://127.0.0.1:8080`
+
+Features:
+- Check DOGE / XRP runtime status and PID
+- Start or stop a selected crypto strategy from the UI
+- View latest logs for each strategy (`app_doge.log` / `app_xrp.log`)
+
+Optional environment variables:
+- `WEB_MANAGER_HOST` (default `127.0.0.1`)
+- `WEB_MANAGER_PORT` (default `8080`)
+- `WEB_MANAGER_DEBUG` (`1` enables Flask debug)
 
 ## Local logs
 During runtime the scripts write trades/events into `trading_logs.db` (SQLite). Use sqlite3 or a small script to query/export logs.

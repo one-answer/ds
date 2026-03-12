@@ -4,4 +4,5 @@ pandas
 schedule
 python-dotenv
 requests
-urllib3
+urllib3>=2.6.3
+flask

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypto Bot Manager</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      margin: 0;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+    .container {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px 24px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .pill {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .running {
+      color: #0f5132;
+      background: #d1e7dd;
+      border-color: #badbcc;
+    }
+    .stopped {
+      color: #842029;
+      background: #f8d7da;
+      border-color: #f5c2c7;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      margin-right: 6px;
+      font-weight: 600;
+    }
+    button.start {
+      color: #fff;
+      background: #2563eb;
+    }
+    button.stop {
+      color: #fff;
+      background: #dc2626;
+    }
+    button.logs {
+      background: #e5e7eb;
+      color: #111827;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .meta {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .log-view {
+      margin-top: 8px;
+      background: #111827;
+      color: #d1d5db;
+      border-radius: 8px;
+      padding: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      min-height: 120px;
+      max-height: 280px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .toast {
+      margin: 10px 0 16px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: #e0f2fe;
+      color: #0c4a6e;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Crypto Bot Manager</h1>
+    <button class="logs" id="refresh">Refresh</button>
+  </div>
+  <div class="toast" id="toast"></div>
+  <div class="grid" id="cards"></div>
+</div>
+
+<script>
+  const cards = document.getElementById("cards");
+  const toast = document.getElementById("toast");
+
+  function showToast(message) {
+    toast.textContent = message;
+    toast.style.display = "block";
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => {
+      toast.style.display = "none";
+    }, 2200);
+  }
+
+  async function fetchStrategies() {
+    const response = await fetch("/api/strategies");
+    if (!response.ok) throw new Error("failed to load strategies");
+    return response.json();
+  }
+
+  function cardTemplate(item) {
+    const statusClass = item.running ? "running" : "stopped";
+    const statusText = item.running ? "Running" : "Stopped";
+    const startedAt = item.started_at ? new Date(item.started_at).toLocaleString() : "-";
+
+    return `
+      <div class="card" data-name="${item.name}">
+        <div class="row">
+          <strong>${item.display}</strong>
+          <span class="pill ${statusClass}">${statusText}</span>
+        </div>
+        <div class="meta">
+          Script: ${item.script}<br>
+          PID: ${item.pid || "-"}<br>
+          Started at: ${startedAt}<br>
+          Log file: ${item.log}
+        </div>
+        <div style="margin-top: 10px;">
+          <button class="start" data-action="start" ${item.running ? "disabled" : ""}>Start</button>
+          <button class="stop" data-action="stop" ${item.running ? "" : "disabled"}>Stop</button>
+          <button class="logs" data-action="logs">Load Logs</button>
+        </div>
+        <div class="log-view" id="log-${item.name}">Log preview is empty.</div>
+      </div>`;
+  }
+
+  async function render() {
+    try {
+      const list = await fetchStrategies();
+      cards.innerHTML = list.map(cardTemplate).join("");
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function control(name, action) {
+    const response = await fetch(`/api/strategies/${name}/${action}`, {method: "POST"});
+    const body = await response.json();
+    showToast(body.message || `${action} done`);
+    await render();
+  }
+
+  async function loadLogs(name) {
+    const response = await fetch(`/api/strategies/${name}/logs?lines=150`);
+    const body = await response.json();
+    const target = document.getElementById(`log-${name}`);
+    target.textContent = body.content || "No logs yet.";
+    target.scrollTop = target.scrollHeight;
+  }
+
+  cards.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    const card = event.target.closest(".card");
+    if (!card) return;
+
+    const name = card.dataset.name;
+    const action = button.dataset.action;
+
+    try {
+      if (action === "start" || action === "stop") {
+        await control(name, action);
+      } else if (action === "logs") {
+        await loadLogs(name);
+      }
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  document.getElementById("refresh").addEventListener("click", render);
+
+  render();
+  setInterval(render, 6000);
+</script>
+</body>
+</html>
+
