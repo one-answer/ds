@@ -123,6 +123,20 @@ python web_manager.py
 - `WEB_MANAGER_PORT`（默认 `8080`）
 - `WEB_MANAGER_DEBUG`（`1` 开启 Flask debug）
 
+## 导入昨日15分钟K线到MySQL
+先确认 `.env` 已配置：`MYSQL_USERNAME`、`MYSQL_PASSWORD`、`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_DB`。
+
+执行：
+
+```bash
+python sync_okx_yesterday_15m.py --symbol XRP/USDT:USDT
+```
+
+说明：
+- 会自动创建表 `okx_kline_15m`（不存在时）
+- 默认按 `Asia/Shanghai` 的“昨日自然日”抓取 `15m` K线
+- 可通过 `--tz` 指定时区，例如 `--tz UTC`
+
 ## 本地日志
 运行期间脚本会优先将交易/事件记录到 MySQL（当 `MYSQL_*` 配置完整时）；否则回退到 `trading_logs.db`（SQLite）。
 

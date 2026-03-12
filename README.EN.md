@@ -115,6 +115,20 @@ Optional environment variables:
 - `WEB_MANAGER_PORT` (default `8080`)
 - `WEB_MANAGER_DEBUG` (`1` enables Flask debug)
 
+## Import yesterday 15m K-lines into MySQL
+Make sure `.env` has: `MYSQL_USERNAME`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DB`.
+
+Run:
+
+```bash
+python sync_okx_yesterday_15m.py --symbol XRP/USDT:USDT
+```
+
+Notes:
+- Auto-creates `okx_kline_15m` if missing
+- Uses `Asia/Shanghai` natural-day "yesterday" by default
+- You can pass timezone via `--tz`, for example `--tz UTC`
+
 ## Local logs
 During runtime the scripts write trades/events to MySQL first when `MYSQL_*` variables are fully configured; otherwise they fall back to `trading_logs.db` (SQLite).
 
