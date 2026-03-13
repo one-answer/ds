@@ -119,6 +119,7 @@ python web_manager.py
 - 启动前可点选交易模式：`Live (Real Trading)` 或 `Simulated (Paper)`
 - 查看每个策略最近日志（`app_doge.log` / `app_xrp.log`）
 - K 线同步面板支持：
+  - 交易对：`BTC/USDT:USDT`、`ETH/USDT:USDT`、`DOGE/USDT:USDT`、`XRP/USDT:USDT`
   - 单日同步：`5m` / `15m` / `1H`
   - 日期范围同步：`1D` / `1M`
 

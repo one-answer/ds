@@ -34,6 +34,13 @@ STRATEGIES = {
     },
 }
 
+KLINE_SYMBOLS = [
+    "BTC/USDT:USDT",
+    "ETH/USDT:USDT",
+    "DOGE/USDT:USDT",
+    "XRP/USDT:USDT",
+]
+
 MODE_ALIASES = {
     "live": "live",
     "real": "live",
@@ -269,7 +276,7 @@ def api_logs(name: str):
 def api_kline_options():
     return jsonify(
         {
-            "symbols": ["DOGE/USDT:USDT", "XRP/USDT:USDT"],
+            "symbols": KLINE_SYMBOLS,
             "day_timeframes": sorted(DAY_TIMEFRAMES),
             "range_timeframes": sorted(RANGE_TIMEFRAMES),
             "default_tz": "Asia/Shanghai",
@@ -287,6 +294,9 @@ def api_kline_sync():
 
     if not timeframe:
         return jsonify({"error": "invalid timeframe"}), 400
+
+    if symbol not in KLINE_SYMBOLS:
+        return jsonify({"error": f"unsupported symbol: {symbol}"}), 400
 
     try:
         if sync_type == "day":

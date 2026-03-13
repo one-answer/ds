@@ -378,15 +378,14 @@
       <div class="field">
         <label for="kline-symbol">Symbol</label>
         <select id="kline-symbol">
-          <option value="XRP/USDT:USDT">XRP/USDT:USDT</option>
-          <option value="DOGE/USDT:USDT">DOGE/USDT:USDT</option>
+          <option value="">Loading...</option>
         </select>
       </div>
       <div class="field">
         <label for="kline-sync-type">Sync Type</label>
         <select id="kline-sync-type">
-          <option value="day">Single Day (5m / 15m / 1H)</option>
-          <option value="range">Date Range (1D / 1M)</option>
+          <option value="day" id="kline-sync-type-day">Single Day</option>
+          <option value="range" id="kline-sync-type-range">Date Range</option>
         </select>
       </div>
       <div class="field">
@@ -426,6 +425,8 @@
   const globalModeSelect = document.getElementById("global-mode");
   const klineSymbol = document.getElementById("kline-symbol");
   const klineSyncType = document.getElementById("kline-sync-type");
+  const klineSyncTypeDay = document.getElementById("kline-sync-type-day");
+  const klineSyncTypeRange = document.getElementById("kline-sync-type-range");
   const klineTimeframe = document.getElementById("kline-timeframe");
   const klineDay = document.getElementById("kline-day");
   const klineStart = document.getElementById("kline-start");
@@ -438,7 +439,14 @@
   const klineResult = document.getElementById("kline-result");
   const GLOBAL_MODE_KEY = "ds-global-start-mode";
 
-  const klineTimeframeOptions = {
+  const defaultKlineConfig = {
+    symbols: ["BTC/USDT:USDT", "ETH/USDT:USDT", "DOGE/USDT:USDT", "XRP/USDT:USDT"],
+    day_timeframes: ["5m", "15m", "1H"],
+    range_timeframes: ["1D", "1M"],
+    default_tz: "Asia/Shanghai",
+  };
+
+  let klineTimeframeOptions = {
     day: ["5m", "15m", "1H"],
     range: ["1D", "1M"],
   };
@@ -502,9 +510,65 @@
     if (!klineEnd.value) klineEnd.value = formatDate(today);
   }
 
+  function fillSelectOptions(selectElement, options, keepCurrent = true) {
+    const values = Array.isArray(options) ? options.filter(Boolean) : [];
+    const current = keepCurrent ? selectElement.value : "";
+
+    if (!values.length) {
+      selectElement.innerHTML = "<option value=''>--</option>";
+      return;
+    }
+
+    selectElement.innerHTML = values
+      .map((value) => `<option value="${value}">${value}</option>`)
+      .join("");
+
+    if (keepCurrent && values.includes(current)) {
+      selectElement.value = current;
+    }
+  }
+
+  function syncTypeLabel(prefix, timeframes) {
+    const items = Array.isArray(timeframes) ? timeframes.filter(Boolean) : [];
+    if (!items.length) return prefix;
+    return `${prefix} (${items.join(" / ")})`;
+  }
+
+  function updateSyncTypeLabels() {
+    klineSyncTypeDay.textContent = syncTypeLabel("Single Day", klineTimeframeOptions.day);
+    klineSyncTypeRange.textContent = syncTypeLabel("Date Range", klineTimeframeOptions.range);
+  }
+
+  async function loadKlineOptions() {
+    try {
+      const response = await fetch("/api/kline/options");
+      if (!response.ok) throw new Error("Failed to load K-line options");
+      const body = await response.json();
+
+      fillSelectOptions(klineSymbol, body.symbols || defaultKlineConfig.symbols, true);
+      klineTimeframeOptions = {
+        day: body.day_timeframes || defaultKlineConfig.day_timeframes,
+        range: body.range_timeframes || defaultKlineConfig.range_timeframes,
+      };
+      if (!klineTz.value.trim()) {
+        klineTz.value = body.default_tz || defaultKlineConfig.default_tz;
+      }
+      updateSyncTypeLabels();
+      return;
+    } catch (err) {
+      fillSelectOptions(klineSymbol, defaultKlineConfig.symbols, true);
+      klineTimeframeOptions = {
+        day: defaultKlineConfig.day_timeframes,
+        range: defaultKlineConfig.range_timeframes,
+      };
+      updateSyncTypeLabels();
+      showToast(err.message || "Load K-line options failed");
+    }
+  }
+
   function updateKlineForm() {
     const type = klineSyncType.value === "range" ? "range" : "day";
-    const options = klineTimeframeOptions[type];
+    const options = klineTimeframeOptions[type] || [];
     const current = klineTimeframe.value;
 
     klineTimeframe.innerHTML = options
@@ -513,6 +577,8 @@
 
     if (options.includes(current)) {
       klineTimeframe.value = current;
+    } else if (options.length) {
+      klineTimeframe.value = options[0];
     }
 
     const isRange = type === "range";
@@ -697,7 +763,8 @@
 
   globalModeSelect.value = getGlobalMode();
   setDefaultDates();
-  updateKlineForm();
+  updateSyncTypeLabels();
+  loadKlineOptions().finally(() => updateKlineForm());
   globalModeSelect.addEventListener("change", (event) => {
     const mode = setGlobalMode(event.target.value);
     applyGlobalModeToCards(mode);
