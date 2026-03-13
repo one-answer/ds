@@ -270,6 +270,65 @@
       min-height: 180px;
     }
 
+    .sync-panel {
+      margin-bottom: 14px;
+      border-radius: 16px;
+      padding: 14px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .sync-title {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .sync-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      margin-bottom: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .field input,
+    .field select {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 0.82rem;
+    }
+
+    .sync-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sync-result {
+      margin: 0;
+      color: #c9d6ff;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     @keyframes shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -30% 0; }
@@ -313,6 +372,49 @@
   </header>
 
   <div class="toast" id="toast"></div>
+  <section class="sync-panel">
+    <h2 class="sync-title">K-Line Sync</h2>
+    <div class="sync-grid">
+      <div class="field">
+        <label for="kline-symbol">Symbol</label>
+        <select id="kline-symbol">
+          <option value="XRP/USDT:USDT">XRP/USDT:USDT</option>
+          <option value="DOGE/USDT:USDT">DOGE/USDT:USDT</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="kline-sync-type">Sync Type</label>
+        <select id="kline-sync-type">
+          <option value="day">Single Day (5m / 15m / 1H)</option>
+          <option value="range">Date Range (1D / 1M)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="kline-timeframe">Timeframe</label>
+        <select id="kline-timeframe"></select>
+      </div>
+      <div class="field" id="kline-day-wrap">
+        <label for="kline-day">Date</label>
+        <input id="kline-day" type="date">
+      </div>
+      <div class="field" id="kline-start-wrap" style="display:none;">
+        <label for="kline-start">Start Date</label>
+        <input id="kline-start" type="date">
+      </div>
+      <div class="field" id="kline-end-wrap" style="display:none;">
+        <label for="kline-end">End Date</label>
+        <input id="kline-end" type="date">
+      </div>
+      <div class="field">
+        <label for="kline-tz">Timezone</label>
+        <input id="kline-tz" type="text" value="Asia/Shanghai" placeholder="Asia/Shanghai">
+      </div>
+    </div>
+    <div class="sync-actions">
+      <button class="btn btn-start" id="kline-sync-btn">Sync K-Line</button>
+      <p class="sync-result" id="kline-result">Ready.</p>
+    </div>
+  </section>
   <section class="grid" id="cards"></section>
 </div>
 
@@ -322,7 +424,24 @@
   const refreshBtn = document.getElementById("refresh");
   const lastSync = document.getElementById("last-sync");
   const globalModeSelect = document.getElementById("global-mode");
+  const klineSymbol = document.getElementById("kline-symbol");
+  const klineSyncType = document.getElementById("kline-sync-type");
+  const klineTimeframe = document.getElementById("kline-timeframe");
+  const klineDay = document.getElementById("kline-day");
+  const klineStart = document.getElementById("kline-start");
+  const klineEnd = document.getElementById("kline-end");
+  const klineTz = document.getElementById("kline-tz");
+  const klineDayWrap = document.getElementById("kline-day-wrap");
+  const klineStartWrap = document.getElementById("kline-start-wrap");
+  const klineEndWrap = document.getElementById("kline-end-wrap");
+  const klineSyncBtn = document.getElementById("kline-sync-btn");
+  const klineResult = document.getElementById("kline-result");
   const GLOBAL_MODE_KEY = "ds-global-start-mode";
+
+  const klineTimeframeOptions = {
+    day: ["5m", "15m", "1H"],
+    range: ["1D", "1M"],
+  };
 
   function normalizeMode(value) {
     return value === "paper" ? "paper" : "live";
@@ -367,6 +486,86 @@
 
   function setLoading() {
     cards.innerHTML = "<div class='skeleton'></div><div class='skeleton'></div>";
+  }
+
+  function setDefaultDates() {
+    const today = new Date();
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    if (!klineDay.value) klineDay.value = formatDate(yesterday);
+    if (!klineStart.value) klineStart.value = formatDate(yesterday);
+    if (!klineEnd.value) klineEnd.value = formatDate(today);
+  }
+
+  function updateKlineForm() {
+    const type = klineSyncType.value === "range" ? "range" : "day";
+    const options = klineTimeframeOptions[type];
+    const current = klineTimeframe.value;
+
+    klineTimeframe.innerHTML = options
+      .map((value) => `<option value="${value}">${value}</option>`)
+      .join("");
+
+    if (options.includes(current)) {
+      klineTimeframe.value = current;
+    }
+
+    const isRange = type === "range";
+    klineDayWrap.style.display = isRange ? "none" : "flex";
+    klineStartWrap.style.display = isRange ? "flex" : "none";
+    klineEndWrap.style.display = isRange ? "flex" : "none";
+  }
+
+  function showKlineResult(text) {
+    klineResult.textContent = text;
+  }
+
+  async function syncKline() {
+    const syncType = klineSyncType.value === "range" ? "range" : "day";
+    const payload = {
+      symbol: klineSymbol.value,
+      sync_type: syncType,
+      timeframe: klineTimeframe.value,
+      tz: klineTz.value.trim() || "Asia/Shanghai",
+    };
+
+    if (syncType === "day") {
+      if (!klineDay.value) throw new Error("请选择单日日期");
+      payload.date = klineDay.value;
+    } else {
+      if (!klineStart.value || !klineEnd.value) throw new Error("请选择开始和结束日期");
+      payload.start_date = klineStart.value;
+      payload.end_date = klineEnd.value;
+    }
+
+    klineSyncBtn.disabled = true;
+    showKlineResult("Syncing...");
+
+    try {
+      const response = await fetch("/api/kline/sync", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+      });
+
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "K-line sync failed");
+      }
+
+      const result = body.result || {};
+      showKlineResult(
+        `Done | symbol=${result.symbol} timeframe=${result.timeframe} fetched=${result.fetched} affected=${result.affected}`
+      );
+      showToast("K-line sync finished");
+    } finally {
+      klineSyncBtn.disabled = false;
+    }
   }
 
   async function fetchStrategies() {
@@ -486,8 +685,19 @@
   });
 
   refreshBtn.addEventListener("click", () => render(true));
+  klineSyncType.addEventListener("change", updateKlineForm);
+  klineSyncBtn.addEventListener("click", async () => {
+    try {
+      await syncKline();
+    } catch (err) {
+      showKlineResult(err.message || "K-line sync failed");
+      showToast(err.message || "K-line sync failed");
+    }
+  });
 
   globalModeSelect.value = getGlobalMode();
+  setDefaultDates();
+  updateKlineForm();
   globalModeSelect.addEventListener("change", (event) => {
     const mode = setGlobalMode(event.target.value);
     applyGlobalModeToCards(mode);

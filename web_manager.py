@@ -10,6 +10,14 @@ from typing import Optional
 
 from flask import Flask, jsonify, render_template, request
 
+from kline_sync_service import (
+    DAY_TIMEFRAMES,
+    RANGE_TIMEFRAMES,
+    normalize_timeframe,
+    sync_day_kline,
+    sync_range_kline,
+)
+
 BASE_DIR = Path(__file__).resolve().parent
 STATE_FILE = BASE_DIR / "process_state.json"
 
@@ -33,6 +41,13 @@ MODE_ALIASES = {
     "sim": "paper",
     "simulated": "paper",
     "test": "paper",
+}
+
+SYNC_TYPE_ALIASES = {
+    "day": "day",
+    "single_day": "day",
+    "range": "range",
+    "date_range": "range",
 }
 
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
@@ -117,6 +132,12 @@ def _normalize_mode(value) -> str:
     if value is None:
         return "live"
     return MODE_ALIASES.get(str(value).strip().lower(), "live")
+
+
+def _normalize_sync_type(value) -> str:
+    if value is None:
+        return "day"
+    return SYNC_TYPE_ALIASES.get(str(value).strip().lower(), "day")
 
 
 def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
@@ -242,6 +263,63 @@ def api_logs(name: str):
     log_path = BASE_DIR / STRATEGIES[name]["log"]
     content = _tail_log(log_path, lines)
     return jsonify({"name": name, "log": STRATEGIES[name]["log"], "content": content})
+
+
+@app.get("/api/kline/options")
+def api_kline_options():
+    return jsonify(
+        {
+            "symbols": ["DOGE/USDT:USDT", "XRP/USDT:USDT"],
+            "day_timeframes": sorted(DAY_TIMEFRAMES),
+            "range_timeframes": sorted(RANGE_TIMEFRAMES),
+            "default_tz": "Asia/Shanghai",
+        }
+    )
+
+
+@app.post("/api/kline/sync")
+def api_kline_sync():
+    body = request.get_json(silent=True) or {}
+    symbol = str(body.get("symbol") or "XRP/USDT:USDT").strip()
+    sync_type = _normalize_sync_type(body.get("sync_type"))
+    timeframe = normalize_timeframe(body.get("timeframe"))
+    tz_name = str(body.get("tz") or "Asia/Shanghai").strip()
+
+    if not timeframe:
+        return jsonify({"error": "invalid timeframe"}), 400
+
+    try:
+        if sync_type == "day":
+            if timeframe not in DAY_TIMEFRAMES:
+                return jsonify({"error": "day sync only supports 5m, 15m, 1H"}), 400
+
+            day_text = str(body.get("date") or "").strip()
+            if not day_text:
+                return jsonify({"error": "date is required (YYYY-MM-DD)"}), 400
+
+            result = sync_day_kline(symbol=symbol, timeframe=timeframe, day_text=day_text, tz_name=tz_name)
+        else:
+            if timeframe not in RANGE_TIMEFRAMES:
+                return jsonify({"error": "range sync only supports 1D, 1M"}), 400
+
+            start_date = str(body.get("start_date") or "").strip()
+            end_date = str(body.get("end_date") or "").strip()
+            if not start_date or not end_date:
+                return jsonify({"error": "start_date and end_date are required (YYYY-MM-DD)"}), 400
+
+            result = sync_range_kline(
+                symbol=symbol,
+                timeframe=timeframe,
+                start_text=start_date,
+                end_text=end_date,
+                tz_name=tz_name,
+            )
+
+        return jsonify({"ok": True, "message": "kline sync completed", "result": result})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"kline sync failed: {exc}"}), 500
 
 
 if __name__ == "__main__":

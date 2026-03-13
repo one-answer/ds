@@ -118,6 +118,9 @@ python web_manager.py
 - 一键启动或停止某类虚拟货币策略
 - 启动前可点选交易模式：`Live (Real Trading)` 或 `Simulated (Paper)`
 - 查看每个策略最近日志（`app_doge.log` / `app_xrp.log`）
+- K 线同步面板支持：
+  - 单日同步：`5m` / `15m` / `1H`
+  - 日期范围同步：`1D` / `1M`
 
 可选环境变量：
 - `WEB_MANAGER_HOST`（默认 `127.0.0.1`）
