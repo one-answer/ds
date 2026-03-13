@@ -226,21 +226,27 @@ def strategy_donchian_breakout(idx: int, candles: list[Candle], params: dict[str
 STRATEGIES: dict[str, dict[str, Any]] = {
     "ma_crossover": {
         "name": "MA Crossover",
+        "name_zh": "均线交叉",
         "description": "Fast/slow moving average crossover (long/short).",
+        "description_zh": "短期/长期均线交叉：短均线上穿长均线做多；短均线下穿长均线做空。",
         "defaults": {"fast": 10, "slow": 30},
         "fn": strategy_ma_crossover,
         "warmup": 60,
     },
     "rsi_reversion": {
         "name": "RSI Reversion",
+        "name_zh": "RSI 反转",
         "description": "Fade RSI extremes and exit near midline (long/short).",
+        "description_zh": "RSI 均值回归：RSI 超卖做多、超买做空；回到中线附近退出持仓。",
         "defaults": {"period": 14, "buy_below": 30, "sell_above": 70, "exit_level": 50},
         "fn": strategy_rsi_reversion,
         "warmup": 30,
     },
     "donchian_breakout": {
         "name": "Donchian Breakout",
+        "name_zh": "唐奇安突破",
         "description": "Turtle-style channel breakout with shorter exit channel.",
+        "description_zh": "唐奇安通道突破：突破过去 N 根最高价做多、跌破最低价做空；用更短的通道反向突破退出。",
         "defaults": {"entry": 20, "exit": 10},
         "fn": strategy_donchian_breakout,
         "warmup": 60,
@@ -426,4 +432,3 @@ def backtest_from_dates(
     result["start_ms"] = int(start_ms)
     result["end_ms"] = int(end_ms)
     return result
-

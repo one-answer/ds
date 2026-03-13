@@ -352,7 +352,9 @@ def api_backtest_options():
             {
                 "id": sid,
                 "name": meta.get("name", sid),
+                "name_zh": meta.get("name_zh", ""),
                 "description": meta.get("description", ""),
+                "description_zh": meta.get("description_zh", ""),
                 "defaults": meta.get("defaults") or {},
             }
         )

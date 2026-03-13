@@ -329,6 +329,18 @@
       word-break: break-word;
     }
 
+    .hint {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+
+    .hint strong {
+      color: var(--text);
+      font-weight: 800;
+    }
+
     .tabs {
       display: inline-flex;
       gap: 8px;
@@ -514,6 +526,7 @@
           <select id="bt-strategy">
             <option value="">Loading...</option>
           </select>
+          <p class="hint" id="bt-strategy-desc"></p>
         </div>
         <div class="field">
           <label for="bt-leverage" data-i18n="leverage">Leverage</label>
@@ -578,6 +591,7 @@
       select_single_day_date: "Please select date for Single Day.",
       select_range_dates: "Please select start and end dates.",
       strategy: "Strategy",
+      strategy_desc: "Logic",
       strategy_params: "Strategy Params (JSON)",
       leverage: "Leverage",
       fee_bps_side: "Fee (bps/side)",
@@ -642,6 +656,7 @@
       select_single_day_date: "请选择单日日期",
       select_range_dates: "请选择开始和结束日期",
       strategy: "策略",
+      strategy_desc: "策略逻辑",
       strategy_params: "策略参数 (JSON)",
       leverage: "杠杆",
       fee_bps_side: "手续费 (bps/边)",
@@ -748,6 +763,7 @@
   const btEnd = document.getElementById("bt-end");
   const btTz = document.getElementById("bt-tz");
   const btStrategy = document.getElementById("bt-strategy");
+  const btStrategyDesc = document.getElementById("bt-strategy-desc");
   const btLeverage = document.getElementById("bt-leverage");
   const btFeeBps = document.getElementById("bt-fee-bps");
   const btSlippageBps = document.getElementById("bt-slippage-bps");
@@ -860,6 +876,17 @@
     };
     if (isDefaultResult(klineResult)) klineResult.textContent = t("ready");
     if (isDefaultResult(btResult)) btResult.textContent = t("ready");
+
+    // Re-label strategy select options (keep value, preserve selection)
+    const selected = btStrategy.value;
+    Array.from(btStrategy.options || []).forEach((opt) => {
+      const id = opt.value;
+      if (!id) return;
+      const meta = backtestStrategyMeta[id] || {};
+      opt.textContent = getLang() === "zh" && meta.name_zh ? String(meta.name_zh) : String(meta.name || id);
+    });
+    if (selected) btStrategy.value = selected;
+    updateBacktestStrategyDescription();
 
     updateSyncTypeLabels();
     document.title = t("app_title");
@@ -999,6 +1026,18 @@
 
   let backtestStrategyMeta = {};
 
+  function updateBacktestStrategyDescription() {
+    const sid = btStrategy.value;
+    const meta = backtestStrategyMeta[sid] || {};
+    const lang = getLang();
+    const desc = lang === "zh" ? (meta.description_zh || meta.description || "") : (meta.description || "");
+    if (!desc) {
+      btStrategyDesc.textContent = "";
+      return;
+    }
+    btStrategyDesc.textContent = `${t("strategy_desc")}: ${desc}`;
+  }
+
   function applyBacktestDefaults(body) {
     const defaults = (body && body.defaults) || {};
     if (btTz && !btTz.value.trim()) btTz.value = body.default_tz || "Asia/Shanghai";
@@ -1015,6 +1054,7 @@
     if (!btParams.value.trim()) {
       btParams.value = JSON.stringify(defaults);
     }
+    updateBacktestStrategyDescription();
   }
 
   async function loadBacktestOptions() {
@@ -1032,13 +1072,14 @@
         .map((s) => {
           const id = String(s.id || "");
           backtestStrategyMeta[id] = s;
-          const name = String(s.name || id);
+          const name = getLang() === "zh" && s.name_zh ? String(s.name_zh) : String(s.name || id);
           return `<option value="${id}">${name}</option>`;
         })
         .join("");
 
       applyBacktestDefaults(body);
       updateBacktestParamsPlaceholder();
+      updateBacktestStrategyDescription();
 
       // Default date range: yesterday -> today
       const today = new Date();
