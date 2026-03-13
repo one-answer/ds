@@ -408,125 +408,132 @@
 <div class="container">
   <header class="topbar">
     <div class="title-wrap">
-      <h1>Crypto Bot Manager</h1>
-      <div class="subtitle">Control bot runtime and inspect logs in one place</div>
+      <h1 data-i18n="app_title">Crypto Bot Manager</h1>
+      <div class="subtitle" data-i18n="app_subtitle">Control bot runtime and inspect logs in one place</div>
     </div>
     <div class="toolbar">
-      <div class="chip" id="last-sync">Last sync: --</div>
+      <div class="chip" id="last-sync" data-i18n="last_sync_chip">Last sync: --</div>
       <div class="global-mode-wrap">
-        <span>Global start mode:</span>
+        <span data-i18n="global_start_mode">Global start mode:</span>
         <select class="mode-select" id="global-mode">
           <option value="live">Live</option>
           <option value="paper">Simulated</option>
         </select>
       </div>
-      <button class="btn btn-refresh" id="refresh">Refresh</button>
+      <div class="global-mode-wrap">
+        <span data-i18n="language">Language:</span>
+        <select class="mode-select" id="lang">
+          <option value="en">EN</option>
+          <option value="zh">中文</option>
+        </select>
+      </div>
+      <button class="btn btn-refresh" id="refresh" data-i18n="refresh">Refresh</button>
     </div>
   </header>
 
   <div class="toast" id="toast"></div>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
-    <button class="tab-btn" id="tab-kline" role="tab" aria-selected="true" aria-controls="panel-kline" type="button" data-tab="kline">同步 K 线数据</button>
-    <button class="tab-btn" id="tab-trading" role="tab" aria-selected="false" aria-controls="panel-trading" type="button" data-tab="trading">启动交易脚本</button>
+    <button class="tab-btn" id="tab-kline" role="tab" aria-selected="true" aria-controls="panel-kline" type="button" data-tab="kline" data-i18n="tab_kline">Sync K-Line</button>
+    <button class="tab-btn" id="tab-trading" role="tab" aria-selected="false" aria-controls="panel-trading" type="button" data-tab="trading" data-i18n="tab_trading">Trading Scripts</button>
   </nav>
 
   <section class="tab-panel" id="panel-kline" role="tabpanel" aria-labelledby="tab-kline">
     <section class="sync-panel">
-    <h2 class="sync-title">K-Line Sync</h2>
+    <h2 class="sync-title" data-i18n="kline_sync_title">K-Line Sync</h2>
     <div class="sync-grid">
       <div class="field">
-        <label for="kline-symbol">Symbol</label>
+        <label for="kline-symbol" data-i18n="symbol">Symbol</label>
         <select id="kline-symbol">
           <option value="">Loading...</option>
         </select>
       </div>
       <div class="field">
-        <label for="kline-sync-type">Sync Type</label>
+        <label for="kline-sync-type" data-i18n="sync_type">Sync Type</label>
         <select id="kline-sync-type">
           <option value="day" id="kline-sync-type-day">Single Day</option>
           <option value="range" id="kline-sync-type-range">Date Range</option>
         </select>
       </div>
       <div class="field">
-        <label for="kline-timeframe">Timeframe</label>
+        <label for="kline-timeframe" data-i18n="timeframe">Timeframe</label>
         <select id="kline-timeframe"></select>
       </div>
       <div class="field" id="kline-day-wrap">
-        <label for="kline-day">Date</label>
+        <label for="kline-day" data-i18n="date">Date</label>
         <input id="kline-day" type="date">
       </div>
       <div class="field" id="kline-start-wrap" style="display:none;">
-        <label for="kline-start">Start Date</label>
+        <label for="kline-start" data-i18n="start_date">Start Date</label>
         <input id="kline-start" type="date">
       </div>
       <div class="field" id="kline-end-wrap" style="display:none;">
-        <label for="kline-end">End Date</label>
+        <label for="kline-end" data-i18n="end_date">End Date</label>
         <input id="kline-end" type="date">
       </div>
       <div class="field">
-        <label for="kline-tz">Timezone</label>
+        <label for="kline-tz" data-i18n="timezone">Timezone</label>
         <input id="kline-tz" type="text" value="Asia/Shanghai" placeholder="Asia/Shanghai">
       </div>
     </div>
     <div class="sync-actions">
-      <button class="btn btn-start" id="kline-sync-btn">Sync K-Line</button>
+      <button class="btn btn-start" id="kline-sync-btn" data-i18n="kline_sync_btn">Sync K-Line</button>
       <p class="sync-result" id="kline-result">Ready.</p>
     </div>
     </section>
 
     <section class="sync-panel">
-      <h2 class="sync-title">Backtest</h2>
+      <h2 class="sync-title" data-i18n="backtest_title">Backtest</h2>
       <div class="sync-grid">
         <div class="field">
-          <label for="bt-symbol">Symbol</label>
+          <label for="bt-symbol" data-i18n="symbol">Symbol</label>
           <select id="bt-symbol">
             <option value="">Loading...</option>
           </select>
         </div>
         <div class="field">
-          <label for="bt-timeframe">Timeframe</label>
+          <label for="bt-timeframe" data-i18n="timeframe">Timeframe</label>
           <select id="bt-timeframe">
             <option value="">Loading...</option>
           </select>
         </div>
         <div class="field">
-          <label for="bt-start">Start Date</label>
+          <label for="bt-start" data-i18n="start_date">Start Date</label>
           <input id="bt-start" type="date">
         </div>
         <div class="field">
-          <label for="bt-end">End Date</label>
+          <label for="bt-end" data-i18n="end_date">End Date</label>
           <input id="bt-end" type="date">
         </div>
         <div class="field">
-          <label for="bt-tz">Timezone</label>
+          <label for="bt-tz" data-i18n="timezone">Timezone</label>
           <input id="bt-tz" type="text" value="Asia/Shanghai" placeholder="Asia/Shanghai">
         </div>
         <div class="field">
-          <label for="bt-strategy">Strategy</label>
+          <label for="bt-strategy" data-i18n="strategy">Strategy</label>
           <select id="bt-strategy">
             <option value="">Loading...</option>
           </select>
         </div>
         <div class="field">
-          <label for="bt-leverage">Leverage</label>
+          <label for="bt-leverage" data-i18n="leverage">Leverage</label>
           <input id="bt-leverage" type="number" min="0.1" step="0.1" value="1">
         </div>
         <div class="field">
-          <label for="bt-fee-bps">Fee (bps/side)</label>
+          <label for="bt-fee-bps" data-i18n="fee_bps_side">Fee (bps/side)</label>
           <input id="bt-fee-bps" type="number" min="0" step="0.1" value="5">
         </div>
         <div class="field">
-          <label for="bt-slippage-bps">Slippage (bps/side)</label>
+          <label for="bt-slippage-bps" data-i18n="slippage_bps_side">Slippage (bps/side)</label>
           <input id="bt-slippage-bps" type="number" min="0" step="0.1" value="2">
         </div>
         <div class="field" style="grid-column: 1 / -1;">
-          <label for="bt-params">Strategy Params (JSON)</label>
+          <label for="bt-params" data-i18n="strategy_params">Strategy Params (JSON)</label>
           <input id="bt-params" type="text" placeholder='{"fast":10,"slow":30}'>
         </div>
       </div>
       <div class="sync-actions">
-        <button class="btn btn-start" id="bt-run-btn">Run Backtest</button>
+        <button class="btn btn-start" id="bt-run-btn" data-i18n="run_backtest">Run Backtest</button>
         <p class="sync-result" id="bt-result">Ready.</p>
       </div>
       <div class="log-view" id="bt-details" style="display:none;"></div>
@@ -539,6 +546,178 @@
 </div>
 
 <script>
+  const I18N = {
+    en: {
+      app_title: "Crypto Bot Manager",
+      app_subtitle: "Control bot runtime and inspect logs in one place",
+      last_sync: "Last sync",
+      last_sync_chip: "Last sync: --",
+      global_start_mode: "Global start mode:",
+      language: "Language:",
+      refresh: "Refresh",
+      tab_kline: "Sync K-Line",
+      tab_trading: "Trading Scripts",
+      kline_sync_title: "K-Line Sync",
+      backtest_title: "Backtest",
+      symbol: "Symbol",
+      sync_type: "Sync Type",
+      single_day: "Single Day",
+      date_range: "Date Range",
+      timeframe: "Timeframe",
+      date: "Date",
+      start_date: "Start Date",
+      end_date: "End Date",
+      timezone: "Timezone",
+      kline_sync_btn: "Sync K-Line",
+      ready: "Ready.",
+      syncing: "Syncing...",
+      kline_sync_finished: "K-line sync finished",
+      kline_options_failed: "Load K-line options failed",
+      kline_sync_failed: "K-line sync failed",
+      loading: "Loading...",
+      select_single_day_date: "Please select date for Single Day.",
+      select_range_dates: "Please select start and end dates.",
+      strategy: "Strategy",
+      strategy_params: "Strategy Params (JSON)",
+      leverage: "Leverage",
+      fee_bps_side: "Fee (bps/side)",
+      slippage_bps_side: "Slippage (bps/side)",
+      run_backtest: "Run Backtest",
+      backtest_running: "Running...",
+      backtest_finished: "Backtest finished",
+      backtest_failed: "Backtest failed",
+      backtest_options_failed: "Load backtest options failed",
+      params_json_invalid: "Params JSON invalid.",
+      select_bt_dates: "Please select start and end dates.",
+      start_mode: "Start mode:",
+      mode_live: "Live (Real Trading)",
+      mode_paper: "Simulated (Paper)",
+      start: "Start",
+      stop: "Stop",
+      load_logs: "Load Logs",
+      log_preview_empty: "Log preview is empty.",
+      load_failed: "Load failed",
+      load_strategies_failed: "Failed to load strategies",
+      operation_failed: "Operation failed",
+      no_logs_yet: "No logs yet.",
+      running: "Running",
+      stopped: "Stopped",
+      meta_script: "Script",
+      meta_pid: "PID",
+      meta_started_at: "Started At",
+      meta_log_file: "Log File",
+      meta_trade_mode: "Trade Mode",
+      mode_label_live: "Live",
+      mode_label_paper: "Simulated",
+      global_mode_set: "Global start mode set to {mode}",
+    },
+    zh: {
+      app_title: "交易机器人管理",
+      app_subtitle: "在同一页面管理策略进程并查看日志",
+      last_sync: "最近刷新",
+      last_sync_chip: "最近刷新: --",
+      global_start_mode: "全局启动模式:",
+      language: "语言:",
+      refresh: "刷新",
+      tab_kline: "同步 K 线数据",
+      tab_trading: "启动交易脚本",
+      kline_sync_title: "K 线同步",
+      backtest_title: "回测",
+      symbol: "交易对",
+      sync_type: "同步类型",
+      single_day: "单日",
+      date_range: "日期范围",
+      timeframe: "周期",
+      date: "日期",
+      start_date: "开始日期",
+      end_date: "结束日期",
+      timezone: "时区",
+      kline_sync_btn: "同步 K 线",
+      ready: "就绪。",
+      syncing: "同步中...",
+      kline_sync_finished: "K 线同步完成",
+      kline_options_failed: "加载 K 线选项失败",
+      kline_sync_failed: "K 线同步失败",
+      loading: "加载中...",
+      select_single_day_date: "请选择单日日期",
+      select_range_dates: "请选择开始和结束日期",
+      strategy: "策略",
+      strategy_params: "策略参数 (JSON)",
+      leverage: "杠杆",
+      fee_bps_side: "手续费 (bps/边)",
+      slippage_bps_side: "滑点 (bps/边)",
+      run_backtest: "运行回测",
+      backtest_running: "回测中...",
+      backtest_finished: "回测完成",
+      backtest_failed: "回测失败",
+      backtest_options_failed: "加载回测选项失败",
+      params_json_invalid: "参数 JSON 不合法。",
+      select_bt_dates: "请选择开始和结束日期",
+      start_mode: "启动模式:",
+      mode_live: "实盘 (真实交易)",
+      mode_paper: "模拟 (纸面交易)",
+      start: "启动",
+      stop: "停止",
+      load_logs: "加载日志",
+      log_preview_empty: "日志预览为空。",
+      load_failed: "加载失败",
+      load_strategies_failed: "加载策略失败",
+      operation_failed: "操作失败",
+      no_logs_yet: "暂无日志。",
+      running: "运行中",
+      stopped: "已停止",
+      meta_script: "脚本",
+      meta_pid: "PID",
+      meta_started_at: "启动时间",
+      meta_log_file: "日志文件",
+      meta_trade_mode: "交易模式",
+      mode_label_live: "实盘",
+      mode_label_paper: "模拟",
+      global_mode_set: "全局启动模式已设置为 {mode}",
+    },
+  };
+
+  function normalizeLang(value) {
+    return value === "zh" ? "zh" : "en";
+  }
+
+  const LANG_KEY = "ds-lang";
+
+  function getLang() {
+    try {
+      const stored = localStorage.getItem(LANG_KEY);
+      if (stored) return normalizeLang(stored);
+    } catch (err) {
+      // ignore storage errors
+    }
+    const nav = (navigator.language || "").toLowerCase();
+    if (nav.startsWith("zh")) return "zh";
+    return "en";
+  }
+
+  function setLang(lang) {
+    const normalized = normalizeLang(lang);
+    try {
+      localStorage.setItem(LANG_KEY, normalized);
+    } catch (err) {
+      // ignore storage errors
+    }
+    return normalized;
+  }
+
+  function t(key, vars = null) {
+    const lang = getLang();
+    const dict = I18N[lang] || I18N.en;
+    const fallback = I18N.en || {};
+    let text = dict[key] || fallback[key] || String(key);
+    if (vars && typeof vars === "object") {
+      Object.keys(vars).forEach((k) => {
+        text = text.replaceAll(`{${k}}`, String(vars[k]));
+      });
+    }
+    return text;
+  }
+
   const tabKline = document.getElementById("tab-kline");
   const tabTrading = document.getElementById("tab-trading");
   const panelKline = document.getElementById("panel-kline");
@@ -548,6 +727,7 @@
   const refreshBtn = document.getElementById("refresh");
   const lastSync = document.getElementById("last-sync");
   const globalModeSelect = document.getElementById("global-mode");
+  const langSelect = document.getElementById("lang");
   const klineSymbol = document.getElementById("kline-symbol");
   const klineSyncType = document.getElementById("kline-sync-type");
   const klineSyncTypeDay = document.getElementById("kline-sync-type-day");
@@ -650,6 +830,42 @@
     }
   }
 
+  function applyI18n() {
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      if (!key) return;
+      el.textContent = t(key);
+    });
+
+    // Keep select option labels in sync with language (without changing values).
+    const gmLive = globalModeSelect.querySelector("option[value='live']");
+    const gmPaper = globalModeSelect.querySelector("option[value='paper']");
+    if (gmLive) gmLive.textContent = t("mode_label_live");
+    if (gmPaper) gmPaper.textContent = t("mode_label_paper");
+
+    // Update "Loading..." placeholders for selects before options are fetched.
+    [klineSymbol, btSymbol, btTimeframe, btStrategy].forEach((sel) => {
+      if (!sel) return;
+      if (sel.options && sel.options.length === 1 && sel.options[0].value === "") {
+        const text = String(sel.options[0].textContent || "").trim();
+        if (text === "Loading..." || text === "加载中...") {
+          sel.options[0].textContent = t("loading");
+        }
+      }
+    });
+
+    const isDefaultResult = (el) => {
+      const v = String(el.textContent || "").trim();
+      return v === I18N.en.ready || v === I18N.zh.ready || v === "Ready." || v === "就绪。";
+    };
+    if (isDefaultResult(klineResult)) klineResult.textContent = t("ready");
+    if (isDefaultResult(btResult)) btResult.textContent = t("ready");
+
+    updateSyncTypeLabels();
+    document.title = t("app_title");
+    render(true);
+  }
+
   function showToast(message) {
     toast.textContent = message;
     toast.style.display = "block";
@@ -702,14 +918,14 @@
   }
 
   function updateSyncTypeLabels() {
-    klineSyncTypeDay.textContent = syncTypeLabel("Single Day", klineTimeframeOptions.day);
-    klineSyncTypeRange.textContent = syncTypeLabel("Date Range", klineTimeframeOptions.range);
+    klineSyncTypeDay.textContent = syncTypeLabel(t("single_day"), klineTimeframeOptions.day);
+    klineSyncTypeRange.textContent = syncTypeLabel(t("date_range"), klineTimeframeOptions.range);
   }
 
   async function loadKlineOptions() {
     try {
       const response = await fetch("/api/kline/options");
-      if (!response.ok) throw new Error("Failed to load K-line options");
+      if (!response.ok) throw new Error(t("kline_options_failed"));
       const body = await response.json();
 
       fillSelectOptions(klineSymbol, body.symbols || defaultKlineConfig.symbols, true);
@@ -729,7 +945,7 @@
         range: defaultKlineConfig.range_timeframes,
       };
       updateSyncTypeLabels();
-      showToast(err.message || "Load K-line options failed");
+      showToast(err.message || t("kline_options_failed"));
     }
   }
 
@@ -804,7 +1020,7 @@
   async function loadBacktestOptions() {
     try {
       const response = await fetch("/api/backtest/options");
-      if (!response.ok) throw new Error("Failed to load backtest options");
+      if (!response.ok) throw new Error(t("backtest_options_failed"));
       const body = await response.json();
 
       fillSelectOptions(btSymbol, body.symbols || defaultKlineConfig.symbols, true);
@@ -837,14 +1053,14 @@
       if (!btEnd.value) btEnd.value = formatDate(today);
       return;
     } catch (err) {
-      showToast(err.message || "Load backtest options failed");
+      showToast(err.message || t("backtest_options_failed"));
     }
   }
 
   async function runBacktest() {
     const params = safeParseJsonOrEmpty(btParams.value);
     if (params === null) {
-      showBacktestResult("Params JSON invalid.");
+      showBacktestResult(t("params_json_invalid"));
       return;
     }
 
@@ -862,12 +1078,12 @@
     };
 
     if (!payload.start_date || !payload.end_date) {
-      showBacktestResult("请选择开始和结束日期");
+      showBacktestResult(t("select_bt_dates"));
       return;
     }
 
     btRunBtn.disabled = true;
-    showBacktestResult("Running...");
+    showBacktestResult(t("backtest_running"));
     try {
       const response = await fetch("/api/backtest/run", {
         method: "POST",
@@ -875,7 +1091,7 @@
         body: JSON.stringify(payload),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Backtest failed");
+      if (!response.ok) throw new Error(body.error || t("backtest_failed"));
 
       const r = body.result || {};
       const headline =
@@ -904,10 +1120,10 @@
       }
 
       showBacktestResult(headline, lines.join("\n"));
-      showToast("Backtest finished");
+      showToast(t("backtest_finished"));
     } catch (err) {
-      showBacktestResult(err.message || "Backtest failed");
-      showToast(err.message || "Backtest failed");
+      showBacktestResult(err.message || t("backtest_failed"));
+      showToast(err.message || t("backtest_failed"));
     } finally {
       btRunBtn.disabled = false;
     }
@@ -923,16 +1139,16 @@
     };
 
     if (syncType === "day") {
-      if (!klineDay.value) throw new Error("请选择单日日期");
+      if (!klineDay.value) throw new Error(t("select_single_day_date"));
       payload.date = klineDay.value;
     } else {
-      if (!klineStart.value || !klineEnd.value) throw new Error("请选择开始和结束日期");
+      if (!klineStart.value || !klineEnd.value) throw new Error(t("select_range_dates"));
       payload.start_date = klineStart.value;
       payload.end_date = klineEnd.value;
     }
 
     klineSyncBtn.disabled = true;
-    showKlineResult("Syncing...");
+    showKlineResult(t("syncing"));
 
     try {
       const response = await fetch("/api/kline/sync", {
@@ -943,14 +1159,14 @@
 
       const body = await response.json();
       if (!response.ok) {
-        throw new Error(body.error || "K-line sync failed");
+        throw new Error(body.error || t("kline_sync_failed"));
       }
 
       const result = body.result || {};
       showKlineResult(
         `Done | symbol=${result.symbol} timeframe=${result.timeframe} fetched=${result.fetched} affected=${result.affected}`
       );
-      showToast("K-line sync finished");
+      showToast(t("kline_sync_finished"));
     } finally {
       klineSyncBtn.disabled = false;
     }
@@ -958,15 +1174,15 @@
 
   async function fetchStrategies() {
     const response = await fetch("/api/strategies");
-    if (!response.ok) throw new Error("Failed to load strategies");
+    if (!response.ok) throw new Error(t("load_strategies_failed"));
     return response.json();
   }
 
   function cardTemplate(item) {
     const statusClass = item.running ? "status-running" : "status-stopped";
-    const statusText = item.running ? "Running" : "Stopped";
+    const statusText = item.running ? t("running") : t("stopped");
     const mode = item.mode === "paper" ? "paper" : "live";
-    const modeLabel = mode === "paper" ? "Simulated" : "Live";
+    const modeLabel = mode === "paper" ? t("mode_label_paper") : t("mode_label_live");
     const startMode = item.running ? mode : getGlobalMode();
     const startedAt = item.started_at ? new Date(item.started_at).toLocaleString() : "-";
 
@@ -979,42 +1195,42 @@
 
         <div class="meta-grid">
           <div class="meta-box">
-            <div class="meta-k">Script</div>
+            <div class="meta-k">${t("meta_script")}</div>
             <div class="meta-v">${item.script}</div>
           </div>
           <div class="meta-box">
-            <div class="meta-k">PID</div>
+            <div class="meta-k">${t("meta_pid")}</div>
             <div class="meta-v">${item.pid || "-"}</div>
           </div>
           <div class="meta-box">
-            <div class="meta-k">Started At</div>
+            <div class="meta-k">${t("meta_started_at")}</div>
             <div class="meta-v">${startedAt}</div>
           </div>
           <div class="meta-box">
-            <div class="meta-k">Log File</div>
+            <div class="meta-k">${t("meta_log_file")}</div>
             <div class="meta-v">${item.log}</div>
           </div>
           <div class="meta-box">
-            <div class="meta-k">Trade Mode</div>
+            <div class="meta-k">${t("meta_trade_mode")}</div>
             <div class="meta-v">${modeLabel}</div>
           </div>
         </div>
 
         <div class="mode-row">
-          <span>Start mode:</span>
+          <span>${t("start_mode")}</span>
           <select class="mode-select" data-role="mode" ${item.running ? "disabled" : ""}>
-            <option value="live" ${startMode === "live" ? "selected" : ""}>Live (Real Trading)</option>
-            <option value="paper" ${startMode === "paper" ? "selected" : ""}>Simulated (Paper)</option>
+            <option value="live" ${startMode === "live" ? "selected" : ""}>${t("mode_live")}</option>
+            <option value="paper" ${startMode === "paper" ? "selected" : ""}>${t("mode_paper")}</option>
           </select>
         </div>
 
         <div class="actions">
-          <button class="btn btn-start" data-action="start" ${item.running ? "disabled" : ""}>Start</button>
-          <button class="btn btn-stop" data-action="stop" ${item.running ? "" : "disabled"}>Stop</button>
-          <button class="btn btn-logs" data-action="logs">Load Logs</button>
+          <button class="btn btn-start" data-action="start" ${item.running ? "disabled" : ""}>${t("start")}</button>
+          <button class="btn btn-stop" data-action="stop" ${item.running ? "" : "disabled"}>${t("stop")}</button>
+          <button class="btn btn-logs" data-action="logs">${t("load_logs")}</button>
         </div>
 
-        <div class="log-view" id="log-${item.name}">Log preview is empty.</div>
+        <div class="log-view" id="log-${item.name}">${t("log_preview_empty")}</div>
       </article>`;
   }
 
@@ -1023,9 +1239,9 @@
     try {
       const list = await fetchStrategies();
       cards.innerHTML = list.map(cardTemplate).join("");
-      lastSync.textContent = `Last sync: ${new Date().toLocaleTimeString()}`;
+      lastSync.textContent = `${t("last_sync")}: ${new Date().toLocaleTimeString()}`;
     } catch (err) {
-      showToast(err.message || "Load failed");
+      showToast(err.message || t("load_failed"));
     }
   }
 
@@ -1045,7 +1261,7 @@
     const response = await fetch(`/api/strategies/${name}/logs?lines=150`);
     const body = await response.json();
     const target = document.getElementById(`log-${name}`);
-    target.textContent = body.content || "No logs yet.";
+    target.textContent = body.content || t("no_logs_yet");
     target.scrollTop = target.scrollHeight;
   }
 
@@ -1068,7 +1284,7 @@
         await loadLogs(name);
       }
     } catch (err) {
-      showToast(err.message || "Operation failed");
+      showToast(err.message || t("operation_failed"));
     }
   });
 
@@ -1084,12 +1300,17 @@
     try {
       await syncKline();
     } catch (err) {
-      showKlineResult(err.message || "K-line sync failed");
-      showToast(err.message || "K-line sync failed");
+      showKlineResult(err.message || t("kline_sync_failed"));
+      showToast(err.message || t("kline_sync_failed"));
     }
   });
 
   globalModeSelect.value = getGlobalMode();
+  langSelect.value = getLang();
+  langSelect.addEventListener("change", (event) => {
+    setLang(event.target.value);
+    applyI18n();
+  });
   setActiveTab(getActiveTab());
   setDefaultDates();
   updateSyncTypeLabels();
@@ -1098,10 +1319,10 @@
   globalModeSelect.addEventListener("change", (event) => {
     const mode = setGlobalMode(event.target.value);
     applyGlobalModeToCards(mode);
-    showToast(`Global start mode set to ${mode === "paper" ? "Simulated" : "Live"}`);
+    showToast(t("global_mode_set", {mode: mode === "paper" ? t("mode_label_paper") : t("mode_label_live")}));
   });
 
-  render(true);
+  applyI18n();
   setInterval(render, 6000);
 </script>
 </body>
