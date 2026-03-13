@@ -329,6 +329,59 @@
       word-break: break-word;
     }
 
+    .tabs {
+      display: inline-flex;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: rgba(0, 0, 0, 0.16);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    .tab-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 0.82rem;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, border-color 0.2s ease;
+      user-select: none;
+    }
+
+    .tab-btn:hover {
+      transform: translateY(-1px);
+      color: var(--text);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .tab-btn[aria-selected="true"] {
+      background: rgba(91, 140, 255, 0.22);
+      border-color: rgba(91, 140, 255, 0.35);
+      color: var(--text);
+    }
+
+    .tab-panel[hidden] {
+      display: none !important;
+    }
+
+    .tab-panel {
+      animation: tabIn 220ms ease both;
+      transform-origin: top;
+    }
+
+    @keyframes tabIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     @keyframes shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -30% 0; }
@@ -372,7 +425,14 @@
   </header>
 
   <div class="toast" id="toast"></div>
-  <section class="sync-panel">
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab-btn" id="tab-kline" role="tab" aria-selected="true" aria-controls="panel-kline" type="button" data-tab="kline">同步 K 线数据</button>
+    <button class="tab-btn" id="tab-trading" role="tab" aria-selected="false" aria-controls="panel-trading" type="button" data-tab="trading">启动交易脚本</button>
+  </nav>
+
+  <section class="tab-panel" id="panel-kline" role="tabpanel" aria-labelledby="tab-kline">
+    <section class="sync-panel">
     <h2 class="sync-title">K-Line Sync</h2>
     <div class="sync-grid">
       <div class="field">
@@ -413,11 +473,19 @@
       <button class="btn btn-start" id="kline-sync-btn">Sync K-Line</button>
       <p class="sync-result" id="kline-result">Ready.</p>
     </div>
+    </section>
   </section>
-  <section class="grid" id="cards"></section>
+
+  <section class="tab-panel" id="panel-trading" role="tabpanel" aria-labelledby="tab-trading" hidden>
+    <section class="grid" id="cards"></section>
+  </section>
 </div>
 
 <script>
+  const tabKline = document.getElementById("tab-kline");
+  const tabTrading = document.getElementById("tab-trading");
+  const panelKline = document.getElementById("panel-kline");
+  const panelTrading = document.getElementById("panel-trading");
   const cards = document.getElementById("cards");
   const toast = document.getElementById("toast");
   const refreshBtn = document.getElementById("refresh");
@@ -438,6 +506,7 @@
   const klineSyncBtn = document.getElementById("kline-sync-btn");
   const klineResult = document.getElementById("kline-result");
   const GLOBAL_MODE_KEY = "ds-global-start-mode";
+  const ACTIVE_TAB_KEY = "ds-active-tab";
 
   const defaultKlineConfig = {
     symbols: ["BTC/USDT:USDT", "ETH/USDT:USDT", "DOGE/USDT:USDT", "XRP/USDT:USDT"],
@@ -481,6 +550,34 @@
       if (!startBtn || !modeSelect || startBtn.disabled) return;
       modeSelect.value = normalized;
     });
+  }
+
+  function normalizeTab(value) {
+    return value === "trading" ? "trading" : "kline";
+  }
+
+  function setActiveTab(tab) {
+    const normalized = normalizeTab(tab);
+    const isKline = normalized === "kline";
+
+    tabKline.setAttribute("aria-selected", isKline ? "true" : "false");
+    tabTrading.setAttribute("aria-selected", isKline ? "false" : "true");
+    panelKline.hidden = !isKline;
+    panelTrading.hidden = isKline;
+
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, normalized);
+    } catch (err) {
+      // ignore storage errors
+    }
+  }
+
+  function getActiveTab() {
+    try {
+      return normalizeTab(localStorage.getItem(ACTIVE_TAB_KEY));
+    } catch (err) {
+      return "kline";
+    }
   }
 
   function showToast(message) {
@@ -751,6 +848,8 @@
   });
 
   refreshBtn.addEventListener("click", () => render(true));
+  tabKline.addEventListener("click", () => setActiveTab("kline"));
+  tabTrading.addEventListener("click", () => setActiveTab("trading"));
   klineSyncType.addEventListener("change", updateKlineForm);
   klineSyncBtn.addEventListener("click", async () => {
     try {
@@ -762,6 +861,7 @@
   });
 
   globalModeSelect.value = getGlobalMode();
+  setActiveTab(getActiveTab());
   setDefaultDates();
   updateSyncTypeLabels();
   loadKlineOptions().finally(() => updateKlineForm());
@@ -776,4 +876,3 @@
 </script>
 </body>
 </html>
-
