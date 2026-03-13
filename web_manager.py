@@ -366,6 +366,7 @@ def api_backtest_options():
             "strategies": strategies,
             "default_tz": "Asia/Shanghai",
             "defaults": {
+                "initial_capital": 1000.0,
                 "leverage": 1.0,
                 "fee_bps": 5.0,
                 "slippage_bps": 2.0,
@@ -384,6 +385,13 @@ def api_backtest_run():
     end_date = str(body.get("end_date") or "").strip()
     strategy_id = str(body.get("strategy_id") or "ma_crossover").strip()
     params = body.get("params") if isinstance(body.get("params"), dict) else {}
+
+    try:
+        initial_capital = float(body.get("initial_capital", 1000.0))
+    except (TypeError, ValueError):
+        initial_capital = 1000.0
+    if initial_capital <= 0:
+        initial_capital = 1000.0
 
     try:
         leverage = float(body.get("leverage", 1.0))
@@ -420,6 +428,11 @@ def api_backtest_run():
             fee_bps=fee_bps,
             slippage_bps=slippage_bps,
         )
+        # backtest_service returns equity_end as a ratio (starts from 1.0).
+        equity_ratio = float(result.get("equity_end", 1.0))
+        result["initial_capital"] = float(initial_capital)
+        result["equity_end_capital"] = float(initial_capital) * equity_ratio
+        result["pnl_capital"] = result["equity_end_capital"] - float(initial_capital)
         return jsonify({"ok": True, "result": result})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400

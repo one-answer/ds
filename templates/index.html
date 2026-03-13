@@ -529,6 +529,10 @@
           <p class="hint" id="bt-strategy-desc"></p>
         </div>
         <div class="field">
+          <label for="bt-initial-capital" data-i18n="initial_capital">Initial capital (USDT)</label>
+          <input id="bt-initial-capital" type="number" min="1" step="1" value="1000">
+        </div>
+        <div class="field">
           <label for="bt-leverage" data-i18n="leverage">Leverage</label>
           <input id="bt-leverage" type="number" min="0.1" step="0.1" value="1">
         </div>
@@ -594,6 +598,7 @@
       strategy_desc: "Logic",
       strategy_params: "Strategy Params (JSON)",
       leverage: "Leverage",
+      initial_capital: "Initial capital (USDT)",
       fee_bps_side: "Fee (bps/side)",
       slippage_bps_side: "Slippage (bps/side)",
       run_backtest: "Run Backtest",
@@ -605,9 +610,12 @@
       bt_candles: "candles",
       bt_trades: "trades",
       bt_total: "total",
+      bt_pnl: "pnl",
+      bt_equity_end: "equity_end",
       bt_dd: "dd",
       bt_win: "win",
       bt_bh: "bh",
+      bt_capital_line: "initial={initial} end={end} pnl={pnl}",
       bt_strategy_line: "strategy={id} leverage={leverage} fee_bps={fee_bps} slippage_bps={slippage_bps}",
       bt_symbol_line: "symbol={symbol} timeframe={timeframe} tz={tz}",
       bt_range_line: "range={start}..{end}",
@@ -678,6 +686,7 @@
       strategy_desc: "策略逻辑",
       strategy_params: "策略参数 (JSON)",
       leverage: "杠杆",
+      initial_capital: "初始资金 (USDT)",
       fee_bps_side: "手续费 (bps/边)",
       slippage_bps_side: "滑点 (bps/边)",
       run_backtest: "运行回测",
@@ -689,9 +698,12 @@
       bt_candles: "K 线数",
       bt_trades: "交易数",
       bt_total: "总收益",
+      bt_pnl: "总盈亏",
+      bt_equity_end: "期末资金",
       bt_dd: "最大回撤",
       bt_win: "胜率",
       bt_bh: "买入持有",
+      bt_capital_line: "初始={initial} 期末={end} 盈亏={pnl}",
       bt_strategy_line: "策略={id} 杠杆={leverage} 手续费(bps/边)={fee_bps} 滑点(bps/边)={slippage_bps}",
       bt_symbol_line: "交易对={symbol} 周期={timeframe} 时区={tz}",
       bt_range_line: "区间={start}..{end}",
@@ -802,6 +814,7 @@
   const btTz = document.getElementById("bt-tz");
   const btStrategy = document.getElementById("bt-strategy");
   const btStrategyDesc = document.getElementById("bt-strategy-desc");
+  const btInitialCapital = document.getElementById("bt-initial-capital");
   const btLeverage = document.getElementById("bt-leverage");
   const btFeeBps = document.getElementById("bt-fee-bps");
   const btSlippageBps = document.getElementById("bt-slippage-bps");
@@ -1079,6 +1092,7 @@
   function applyBacktestDefaults(body) {
     const defaults = (body && body.defaults) || {};
     if (btTz && !btTz.value.trim()) btTz.value = body.default_tz || "Asia/Shanghai";
+    if (btInitialCapital && !btInitialCapital.value) btInitialCapital.value = String(defaults.initial_capital ?? 1000.0);
     if (btLeverage && !btLeverage.value) btLeverage.value = String(defaults.leverage ?? 1.0);
     if (btFeeBps && !btFeeBps.value) btFeeBps.value = String(defaults.fee_bps ?? 5.0);
     if (btSlippageBps && !btSlippageBps.value) btSlippageBps.value = String(defaults.slippage_bps ?? 2.0);
@@ -1151,6 +1165,7 @@
       tz: btTz.value.trim() || "Asia/Shanghai",
       strategy_id: btStrategy.value,
       params,
+      initial_capital: Number(btInitialCapital.value || 1000),
       leverage: Number(btLeverage.value || 1),
       fee_bps: Number(btFeeBps.value || 0),
       slippage_bps: Number(btSlippageBps.value || 0),
@@ -1178,6 +1193,8 @@
       headlineParts.push(`${t("bt_candles")}=${r.candles}`);
       headlineParts.push(`${t("bt_trades")}=${r.trades}`);
       headlineParts.push(`${t("bt_total")}=${(r.total_return_pct ?? 0).toFixed(2)}%`);
+      headlineParts.push(`${t("bt_equity_end")}=${Number(r.equity_end_capital ?? 0).toFixed(2)}`);
+      headlineParts.push(`${t("bt_pnl")}=${Number(r.pnl_capital ?? 0).toFixed(2)}`);
       headlineParts.push(`${t("bt_dd")}=${(r.max_drawdown_pct ?? 0).toFixed(2)}%`);
       headlineParts.push(`${t("bt_win")}=${(r.win_rate_pct ?? 0).toFixed(1)}%`);
       headlineParts.push(`${t("bt_bh")}=${(r.buy_hold_return_pct ?? 0).toFixed(2)}%`);
@@ -1204,6 +1221,13 @@
         t("bt_range_line", {
           start: r.start_date,
           end: r.end_date,
+        })
+      );
+      lines.push(
+        t("bt_capital_line", {
+          initial: Number(r.initial_capital ?? 0).toFixed(2),
+          end: Number(r.equity_end_capital ?? 0).toFixed(2),
+          pnl: Number(r.pnl_capital ?? 0).toFixed(2),
         })
       );
       if (r.profit_factor != null) lines.push(`${t("bt_profit_factor")}=${Number(r.profit_factor).toFixed(3)}`);
