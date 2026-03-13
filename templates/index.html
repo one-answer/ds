@@ -601,6 +601,25 @@
       backtest_finished: "Backtest finished",
       backtest_failed: "Backtest failed",
       backtest_options_failed: "Load backtest options failed",
+      bt_done: "Done",
+      bt_candles: "candles",
+      bt_trades: "trades",
+      bt_total: "total",
+      bt_dd: "dd",
+      bt_win: "win",
+      bt_bh: "bh",
+      bt_strategy_line: "strategy={id} leverage={leverage} fee_bps={fee_bps} slippage_bps={slippage_bps}",
+      bt_symbol_line: "symbol={symbol} timeframe={timeframe} tz={tz}",
+      bt_range_line: "range={start}..{end}",
+      bt_profit_factor: "profit_factor",
+      bt_sharpe_like: "sharpe_like",
+      bt_trades_preview: "trades_preview",
+      bt_empty: "(empty)",
+      bt_entry: "entry",
+      bt_exit: "exit",
+      bt_ret: "ret",
+      side_long: "LONG",
+      side_short: "SHORT",
       params_json_invalid: "Params JSON invalid.",
       select_bt_dates: "Please select start and end dates.",
       start_mode: "Start mode:",
@@ -666,6 +685,25 @@
       backtest_finished: "回测完成",
       backtest_failed: "回测失败",
       backtest_options_failed: "加载回测选项失败",
+      bt_done: "完成",
+      bt_candles: "K 线数",
+      bt_trades: "交易数",
+      bt_total: "总收益",
+      bt_dd: "最大回撤",
+      bt_win: "胜率",
+      bt_bh: "买入持有",
+      bt_strategy_line: "策略={id} 杠杆={leverage} 手续费(bps/边)={fee_bps} 滑点(bps/边)={slippage_bps}",
+      bt_symbol_line: "交易对={symbol} 周期={timeframe} 时区={tz}",
+      bt_range_line: "区间={start}..{end}",
+      bt_profit_factor: "盈利因子",
+      bt_sharpe_like: "夏普(简化)",
+      bt_trades_preview: "交易预览",
+      bt_empty: "(空)",
+      bt_entry: "开仓",
+      bt_exit: "平仓",
+      bt_ret: "收益",
+      side_long: "做多",
+      side_short: "做空",
       params_json_invalid: "参数 JSON 不合法。",
       select_bt_dates: "请选择开始和结束日期",
       start_mode: "启动模式:",
@@ -1135,29 +1173,53 @@
       if (!response.ok) throw new Error(body.error || t("backtest_failed"));
 
       const r = body.result || {};
-      const headline =
-        `Done | candles=${r.candles} trades=${r.trades} total=${(r.total_return_pct ?? 0).toFixed(2)}% ` +
-        `dd=${(r.max_drawdown_pct ?? 0).toFixed(2)}% win=${(r.win_rate_pct ?? 0).toFixed(1)}% ` +
-        `bh=${(r.buy_hold_return_pct ?? 0).toFixed(2)}%`;
+      const headlineParts = [];
+      headlineParts.push(t("bt_done"));
+      headlineParts.push(`${t("bt_candles")}=${r.candles}`);
+      headlineParts.push(`${t("bt_trades")}=${r.trades}`);
+      headlineParts.push(`${t("bt_total")}=${(r.total_return_pct ?? 0).toFixed(2)}%`);
+      headlineParts.push(`${t("bt_dd")}=${(r.max_drawdown_pct ?? 0).toFixed(2)}%`);
+      headlineParts.push(`${t("bt_win")}=${(r.win_rate_pct ?? 0).toFixed(1)}%`);
+      headlineParts.push(`${t("bt_bh")}=${(r.buy_hold_return_pct ?? 0).toFixed(2)}%`);
+      const headline = headlineParts.join(" | ");
 
       const lines = [];
       const strategyObj = r.strategy || {};
-      lines.push(`strategy=${strategyObj.id || ""} leverage=${r.leverage} fee_bps=${r.fee_bps} slippage_bps=${r.slippage_bps}`);
-      lines.push(`symbol=${r.symbol} timeframe=${r.timeframe} tz=${r.tz}`);
-      lines.push(`range=${r.start_date}..${r.end_date}`);
-      if (r.profit_factor != null) lines.push(`profit_factor=${Number(r.profit_factor).toFixed(3)}`);
-      if (r.sharpe_like != null) lines.push(`sharpe_like=${Number(r.sharpe_like).toFixed(3)}`);
+      lines.push(
+        t("bt_strategy_line", {
+          id: strategyObj.id || "",
+          leverage: r.leverage,
+          fee_bps: r.fee_bps,
+          slippage_bps: r.slippage_bps,
+        })
+      );
+      lines.push(
+        t("bt_symbol_line", {
+          symbol: r.symbol,
+          timeframe: r.timeframe,
+          tz: r.tz,
+        })
+      );
+      lines.push(
+        t("bt_range_line", {
+          start: r.start_date,
+          end: r.end_date,
+        })
+      );
+      if (r.profit_factor != null) lines.push(`${t("bt_profit_factor")}=${Number(r.profit_factor).toFixed(3)}`);
+      if (r.sharpe_like != null) lines.push(`${t("bt_sharpe_like")}=${Number(r.sharpe_like).toFixed(3)}`);
       lines.push("");
       const preview = Array.isArray(r.trades_preview) ? r.trades_preview : [];
       if (preview.length) {
-        lines.push("trades_preview:");
-        preview.forEach((t) => {
+        lines.push(`${t("bt_trades_preview")}:`);
+        preview.forEach((trade) => {
+          const sideLabel = trade.side === "SHORT" ? t("side_short") : t("side_long");
           lines.push(
-            `${t.side} entry=${t.entry_price} exit=${t.exit_price} ret=${(t.return_pct ?? 0).toFixed(2)}%`
+            `${sideLabel} ${t("bt_entry")}=${trade.entry_price} ${t("bt_exit")}=${trade.exit_price} ${t("bt_ret")}=${(trade.return_pct ?? 0).toFixed(2)}%`
           );
         });
       } else {
-        lines.push("trades_preview: (empty)");
+        lines.push(`${t("bt_trades_preview")}: ${t("bt_empty")}`);
       }
 
       showBacktestResult(headline, lines.join("\n"));
