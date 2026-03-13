@@ -21,6 +21,9 @@ if [ "${1:-}" = "" ]; then
   usage
 fi
 
+SCRIPT_ARGS=()
+PROC_MATCH=""
+
 # Normalize first arg to lowercase in a POSIX-compatible way (macOS bash lacks ${var,,})
 LCASE=$(printf "%s" "$1" | tr '[:upper:]' '[:lower:]')
 
@@ -29,12 +32,16 @@ case "$LCASE" in
     usage
     ;;
   doge)
-    SCRIPT_NAME="deepseek_doge.py"
+    SCRIPT_NAME="deepseek_trade.py"
+    SCRIPT_ARGS=(--strategy doge)
+    PROC_MATCH="deepseek_trade.py --strategy doge"
     LOG_FILE="./app_doge.log"
     shift
     ;;
   xrp)
-    SCRIPT_NAME="deepseek_xrp.py"
+    SCRIPT_NAME="deepseek_trade.py"
+    SCRIPT_ARGS=(--strategy xrp)
+    PROC_MATCH="deepseek_trade.py --strategy xrp"
     LOG_FILE="./app_xrp.log"
     shift
     ;;
@@ -73,7 +80,7 @@ else
 fi
 
 # Ensure PID lookup doesn't break script on non-zero exit
-PID=$(pgrep -f "$SCRIPT_NAME" || true)
+PID=$(pgrep -f "${PROC_MATCH:-$SCRIPT_NAME}" || true)
 
 if [ -n "$PID" ]; then
   echo "⚠️  Detected running process(es) for $SCRIPT_NAME (PID(s): $PID), stopping..."
@@ -85,7 +92,7 @@ fi
 
 # Start new process
 echo "🚀 Starting $SCRIPT_NAME (logs -> $LOG_FILE)"
-nohup env PYTHONUNBUFFERED=1 python "$SCRIPT_NAME" > "$LOG_FILE" 2>&1 &
+nohup env PYTHONUNBUFFERED=1 python "$SCRIPT_NAME" "${SCRIPT_ARGS[@]}" > "$LOG_FILE" 2>&1 &
 NEW_PID=$!
 
 echo "✅ New process started (PID: $NEW_PID)"

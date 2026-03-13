@@ -23,12 +23,16 @@ STATE_FILE = BASE_DIR / "process_state.json"
 
 STRATEGIES = {
     "doge": {
-        "script": "deepseek_doge.py",
+        "script": "deepseek_trade.py",
+        "args": ["--strategy", "doge"],
+        "proc_match": "deepseek_trade.py --strategy doge",
         "log": "app_doge.log",
         "display": "DOGE",
     },
     "xrp": {
-        "script": "deepseek_xrp.py",
+        "script": "deepseek_trade.py",
+        "args": ["--strategy", "xrp"],
+        "proc_match": "deepseek_trade.py --strategy xrp",
         "log": "app_xrp.log",
         "display": "XRP",
     },
@@ -118,15 +122,17 @@ def _strategy_status(name: str, state: dict) -> dict:
     running = bool(pid and _is_pid_alive(pid))
 
     if not running:
-        detected_pid = _find_pid_by_script(strategy["script"])
+        detected_pid = _find_pid_by_script(strategy.get("proc_match") or strategy["script"])
         if detected_pid:
             pid = detected_pid
             running = True
 
+    args = strategy.get("args") or []
+    script_label = " ".join([strategy["script"], *args]).strip()
     return {
         "name": name,
         "display": strategy["display"],
-        "script": strategy["script"],
+        "script": script_label,
         "log": strategy["log"],
         "running": running,
         "pid": pid,
@@ -160,8 +166,10 @@ def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
         save_state(state)
         return False, f"{name} already running", status
 
-    script_path = BASE_DIR / STRATEGIES[name]["script"]
+    strategy = STRATEGIES[name]
+    script_path = BASE_DIR / strategy["script"]
     log_path = BASE_DIR / STRATEGIES[name]["log"]
+    args = strategy.get("args") or []
 
     with open(log_path, "a", encoding="utf-8") as log_file:
         child_env = {
@@ -171,7 +179,7 @@ def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
             "TRADE_TEST_MODE": "1" if mode == "paper" else "0",
         }
         proc = subprocess.Popen(
-            [sys.executable, str(script_path)],
+            [sys.executable, str(script_path), *args],
             cwd=str(BASE_DIR),
             stdout=log_file,
             stderr=subprocess.STDOUT,
@@ -337,4 +345,3 @@ if __name__ == "__main__":
     port = int(os.getenv("WEB_MANAGER_PORT", "8080"))
     debug = os.getenv("WEB_MANAGER_DEBUG", "0") == "1"
     app.run(host=host, port=port, debug=debug)
-
