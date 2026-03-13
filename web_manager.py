@@ -17,6 +17,8 @@ from kline_sync_service import (
     sync_day_kline,
     sync_range_kline,
 )
+from backtest_service import STRATEGIES as BACKTEST_STRATEGIES
+from backtest_service import backtest_from_dates
 
 BASE_DIR = Path(__file__).resolve().parent
 STATE_FILE = BASE_DIR / "process_state.json"
@@ -282,11 +284,12 @@ def api_logs(name: str):
 
 @app.get("/api/kline/options")
 def api_kline_options():
+    allowed_range_timeframes = sorted({*DAY_TIMEFRAMES, *RANGE_TIMEFRAMES})
     return jsonify(
         {
             "symbols": KLINE_SYMBOLS,
             "day_timeframes": sorted(DAY_TIMEFRAMES),
-            "range_timeframes": sorted(RANGE_TIMEFRAMES),
+            "range_timeframes": allowed_range_timeframes,
             "default_tz": "Asia/Shanghai",
         }
     )
@@ -317,8 +320,9 @@ def api_kline_sync():
 
             result = sync_day_kline(symbol=symbol, timeframe=timeframe, day_text=day_text, tz_name=tz_name)
         else:
-            if timeframe not in RANGE_TIMEFRAMES:
-                return jsonify({"error": "range sync only supports 1D, 1M"}), 400
+            allowed_range_timeframes = {*DAY_TIMEFRAMES, *RANGE_TIMEFRAMES}
+            if timeframe not in allowed_range_timeframes:
+                return jsonify({"error": "range sync only supports 5m, 15m, 1H, 1D, 1M"}), 400
 
             start_date = str(body.get("start_date") or "").strip()
             end_date = str(body.get("end_date") or "").strip()
@@ -338,6 +342,87 @@ def api_kline_sync():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         return jsonify({"error": f"kline sync failed: {exc}"}), 500
+
+
+@app.get("/api/backtest/options")
+def api_backtest_options():
+    strategies = []
+    for sid, meta in BACKTEST_STRATEGIES.items():
+        strategies.append(
+            {
+                "id": sid,
+                "name": meta.get("name", sid),
+                "description": meta.get("description", ""),
+                "defaults": meta.get("defaults") or {},
+            }
+        )
+    strategies.sort(key=lambda item: item["id"])
+    return jsonify(
+        {
+            "symbols": KLINE_SYMBOLS,
+            "timeframes": sorted({*DAY_TIMEFRAMES, *RANGE_TIMEFRAMES}),
+            "strategies": strategies,
+            "default_tz": "Asia/Shanghai",
+            "defaults": {
+                "leverage": 1.0,
+                "fee_bps": 5.0,
+                "slippage_bps": 2.0,
+            },
+        }
+    )
+
+
+@app.post("/api/backtest/run")
+def api_backtest_run():
+    body = request.get_json(silent=True) or {}
+    symbol = str(body.get("symbol") or "XRP/USDT:USDT").strip()
+    timeframe = normalize_timeframe(body.get("timeframe"))
+    tz_name = str(body.get("tz") or "Asia/Shanghai").strip()
+    start_date = str(body.get("start_date") or "").strip()
+    end_date = str(body.get("end_date") or "").strip()
+    strategy_id = str(body.get("strategy_id") or "ma_crossover").strip()
+    params = body.get("params") if isinstance(body.get("params"), dict) else {}
+
+    try:
+        leverage = float(body.get("leverage", 1.0))
+    except (TypeError, ValueError):
+        leverage = 1.0
+    try:
+        fee_bps = float(body.get("fee_bps", 5.0))
+    except (TypeError, ValueError):
+        fee_bps = 5.0
+    try:
+        slippage_bps = float(body.get("slippage_bps", 2.0))
+    except (TypeError, ValueError):
+        slippage_bps = 2.0
+
+    if not timeframe:
+        return jsonify({"error": "invalid timeframe"}), 400
+    if symbol not in KLINE_SYMBOLS:
+        return jsonify({"error": f"unsupported symbol: {symbol}"}), 400
+    if not start_date or not end_date:
+        return jsonify({"error": "start_date and end_date are required (YYYY-MM-DD)"}), 400
+    if strategy_id not in BACKTEST_STRATEGIES:
+        return jsonify({"error": f"unknown strategy: {strategy_id}"}), 400
+
+    try:
+        result = backtest_from_dates(
+            symbol=symbol,
+            timeframe=timeframe,
+            start_date=start_date,
+            end_date=end_date,
+            tz_name=tz_name,
+            strategy_id=strategy_id,
+            params=params,
+            leverage=leverage,
+            fee_bps=fee_bps,
+            slippage_bps=slippage_bps,
+        )
+        return jsonify({"ok": True, "result": result})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"backtest failed: {exc}"}), 500
 
 
 if __name__ == "__main__":

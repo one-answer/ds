@@ -474,6 +474,63 @@
       <p class="sync-result" id="kline-result">Ready.</p>
     </div>
     </section>
+
+    <section class="sync-panel">
+      <h2 class="sync-title">Backtest</h2>
+      <div class="sync-grid">
+        <div class="field">
+          <label for="bt-symbol">Symbol</label>
+          <select id="bt-symbol">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="bt-timeframe">Timeframe</label>
+          <select id="bt-timeframe">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="bt-start">Start Date</label>
+          <input id="bt-start" type="date">
+        </div>
+        <div class="field">
+          <label for="bt-end">End Date</label>
+          <input id="bt-end" type="date">
+        </div>
+        <div class="field">
+          <label for="bt-tz">Timezone</label>
+          <input id="bt-tz" type="text" value="Asia/Shanghai" placeholder="Asia/Shanghai">
+        </div>
+        <div class="field">
+          <label for="bt-strategy">Strategy</label>
+          <select id="bt-strategy">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="bt-leverage">Leverage</label>
+          <input id="bt-leverage" type="number" min="0.1" step="0.1" value="1">
+        </div>
+        <div class="field">
+          <label for="bt-fee-bps">Fee (bps/side)</label>
+          <input id="bt-fee-bps" type="number" min="0" step="0.1" value="5">
+        </div>
+        <div class="field">
+          <label for="bt-slippage-bps">Slippage (bps/side)</label>
+          <input id="bt-slippage-bps" type="number" min="0" step="0.1" value="2">
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label for="bt-params">Strategy Params (JSON)</label>
+          <input id="bt-params" type="text" placeholder='{"fast":10,"slow":30}'>
+        </div>
+      </div>
+      <div class="sync-actions">
+        <button class="btn btn-start" id="bt-run-btn">Run Backtest</button>
+        <p class="sync-result" id="bt-result">Ready.</p>
+      </div>
+      <div class="log-view" id="bt-details" style="display:none;"></div>
+    </section>
   </section>
 
   <section class="tab-panel" id="panel-trading" role="tabpanel" aria-labelledby="tab-trading" hidden>
@@ -505,19 +562,32 @@
   const klineEndWrap = document.getElementById("kline-end-wrap");
   const klineSyncBtn = document.getElementById("kline-sync-btn");
   const klineResult = document.getElementById("kline-result");
+  const btSymbol = document.getElementById("bt-symbol");
+  const btTimeframe = document.getElementById("bt-timeframe");
+  const btStart = document.getElementById("bt-start");
+  const btEnd = document.getElementById("bt-end");
+  const btTz = document.getElementById("bt-tz");
+  const btStrategy = document.getElementById("bt-strategy");
+  const btLeverage = document.getElementById("bt-leverage");
+  const btFeeBps = document.getElementById("bt-fee-bps");
+  const btSlippageBps = document.getElementById("bt-slippage-bps");
+  const btParams = document.getElementById("bt-params");
+  const btRunBtn = document.getElementById("bt-run-btn");
+  const btResult = document.getElementById("bt-result");
+  const btDetails = document.getElementById("bt-details");
   const GLOBAL_MODE_KEY = "ds-global-start-mode";
   const ACTIVE_TAB_KEY = "ds-active-tab";
 
   const defaultKlineConfig = {
     symbols: ["BTC/USDT:USDT", "ETH/USDT:USDT", "DOGE/USDT:USDT", "XRP/USDT:USDT"],
     day_timeframes: ["5m", "15m", "1H"],
-    range_timeframes: ["1D", "1M"],
+    range_timeframes: ["5m", "15m", "1H", "1D", "1M"],
     default_tz: "Asia/Shanghai",
   };
 
   let klineTimeframeOptions = {
     day: ["5m", "15m", "1H"],
-    range: ["1D", "1M"],
+    range: ["5m", "15m", "1H", "1D", "1M"],
   };
 
   function normalizeMode(value) {
@@ -688,6 +758,161 @@
     klineResult.textContent = text;
   }
 
+  function showBacktestResult(text, details = "") {
+    btResult.textContent = text;
+    const detailText = (details || "").trim();
+    if (detailText) {
+      btDetails.style.display = "block";
+      btDetails.textContent = detailText;
+    } else {
+      btDetails.style.display = "none";
+      btDetails.textContent = "";
+    }
+  }
+
+  function safeParseJsonOrEmpty(text) {
+    const trimmed = String(text || "").trim();
+    if (!trimmed) return {};
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (err) {
+      return null;
+    }
+  }
+
+  let backtestStrategyMeta = {};
+
+  function applyBacktestDefaults(body) {
+    const defaults = (body && body.defaults) || {};
+    if (btTz && !btTz.value.trim()) btTz.value = body.default_tz || "Asia/Shanghai";
+    if (btLeverage && !btLeverage.value) btLeverage.value = String(defaults.leverage ?? 1.0);
+    if (btFeeBps && !btFeeBps.value) btFeeBps.value = String(defaults.fee_bps ?? 5.0);
+    if (btSlippageBps && !btSlippageBps.value) btSlippageBps.value = String(defaults.slippage_bps ?? 2.0);
+  }
+
+  function updateBacktestParamsPlaceholder() {
+    const sid = btStrategy.value;
+    const meta = backtestStrategyMeta[sid] || {};
+    const defaults = meta.defaults || {};
+    btParams.placeholder = JSON.stringify(defaults);
+    if (!btParams.value.trim()) {
+      btParams.value = JSON.stringify(defaults);
+    }
+  }
+
+  async function loadBacktestOptions() {
+    try {
+      const response = await fetch("/api/backtest/options");
+      if (!response.ok) throw new Error("Failed to load backtest options");
+      const body = await response.json();
+
+      fillSelectOptions(btSymbol, body.symbols || defaultKlineConfig.symbols, true);
+      fillSelectOptions(btTimeframe, body.timeframes || ["15m"], true);
+
+      const strategies = Array.isArray(body.strategies) ? body.strategies : [];
+      backtestStrategyMeta = {};
+      btStrategy.innerHTML = strategies
+        .map((s) => {
+          const id = String(s.id || "");
+          backtestStrategyMeta[id] = s;
+          const name = String(s.name || id);
+          return `<option value="${id}">${name}</option>`;
+        })
+        .join("");
+
+      applyBacktestDefaults(body);
+      updateBacktestParamsPlaceholder();
+
+      // Default date range: yesterday -> today
+      const today = new Date();
+      const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+      if (!btStart.value) btStart.value = formatDate(yesterday);
+      if (!btEnd.value) btEnd.value = formatDate(today);
+      return;
+    } catch (err) {
+      showToast(err.message || "Load backtest options failed");
+    }
+  }
+
+  async function runBacktest() {
+    const params = safeParseJsonOrEmpty(btParams.value);
+    if (params === null) {
+      showBacktestResult("Params JSON invalid.");
+      return;
+    }
+
+    const payload = {
+      symbol: btSymbol.value,
+      timeframe: btTimeframe.value,
+      start_date: btStart.value,
+      end_date: btEnd.value,
+      tz: btTz.value.trim() || "Asia/Shanghai",
+      strategy_id: btStrategy.value,
+      params,
+      leverage: Number(btLeverage.value || 1),
+      fee_bps: Number(btFeeBps.value || 0),
+      slippage_bps: Number(btSlippageBps.value || 0),
+    };
+
+    if (!payload.start_date || !payload.end_date) {
+      showBacktestResult("请选择开始和结束日期");
+      return;
+    }
+
+    btRunBtn.disabled = true;
+    showBacktestResult("Running...");
+    try {
+      const response = await fetch("/api/backtest/run", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Backtest failed");
+
+      const r = body.result || {};
+      const headline =
+        `Done | candles=${r.candles} trades=${r.trades} total=${(r.total_return_pct ?? 0).toFixed(2)}% ` +
+        `dd=${(r.max_drawdown_pct ?? 0).toFixed(2)}% win=${(r.win_rate_pct ?? 0).toFixed(1)}% ` +
+        `bh=${(r.buy_hold_return_pct ?? 0).toFixed(2)}%`;
+
+      const lines = [];
+      const strategyObj = r.strategy || {};
+      lines.push(`strategy=${strategyObj.id || ""} leverage=${r.leverage} fee_bps=${r.fee_bps} slippage_bps=${r.slippage_bps}`);
+      lines.push(`symbol=${r.symbol} timeframe=${r.timeframe} tz=${r.tz}`);
+      lines.push(`range=${r.start_date}..${r.end_date}`);
+      if (r.profit_factor != null) lines.push(`profit_factor=${Number(r.profit_factor).toFixed(3)}`);
+      if (r.sharpe_like != null) lines.push(`sharpe_like=${Number(r.sharpe_like).toFixed(3)}`);
+      lines.push("");
+      const preview = Array.isArray(r.trades_preview) ? r.trades_preview : [];
+      if (preview.length) {
+        lines.push("trades_preview:");
+        preview.forEach((t) => {
+          lines.push(
+            `${t.side} entry=${t.entry_price} exit=${t.exit_price} ret=${(t.return_pct ?? 0).toFixed(2)}%`
+          );
+        });
+      } else {
+        lines.push("trades_preview: (empty)");
+      }
+
+      showBacktestResult(headline, lines.join("\n"));
+      showToast("Backtest finished");
+    } catch (err) {
+      showBacktestResult(err.message || "Backtest failed");
+      showToast(err.message || "Backtest failed");
+    } finally {
+      btRunBtn.disabled = false;
+    }
+  }
+
   async function syncKline() {
     const syncType = klineSyncType.value === "range" ? "range" : "day";
     const payload = {
@@ -851,6 +1076,10 @@
   tabKline.addEventListener("click", () => setActiveTab("kline"));
   tabTrading.addEventListener("click", () => setActiveTab("trading"));
   klineSyncType.addEventListener("change", updateKlineForm);
+  btStrategy.addEventListener("change", updateBacktestParamsPlaceholder);
+  btRunBtn.addEventListener("click", async () => {
+    await runBacktest();
+  });
   klineSyncBtn.addEventListener("click", async () => {
     try {
       await syncKline();
@@ -865,6 +1094,7 @@
   setDefaultDates();
   updateSyncTypeLabels();
   loadKlineOptions().finally(() => updateKlineForm());
+  loadBacktestOptions();
   globalModeSelect.addEventListener("change", (event) => {
     const mode = setGlobalMode(event.target.value);
     applyGlobalModeToCards(mode);
