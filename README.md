@@ -129,18 +129,28 @@ python web_manager.py
 - `WEB_MANAGER_DEBUG`（`1` 开启 Flask debug）
 
 ## 导入昨日15分钟K线到MySQL
-先确认 `.env` 已配置：`MYSQL_USERNAME`、`MYSQL_PASSWORD`、`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_DB`。
+项目目前统一将 K 线写入 MySQL 表 `okx_kline`（包含 `timeframe` 字段），同步可使用 Web 管理端的 K 线同步面板或调用 `kline_sync_service.py` 中的同步方法。
 
-执行：
+说明：K 线表 `okx_kline` 使用字段 `open_time_shanghai`，存的是 **上海时区（UTC+8）的本地时间**（方便直接肉眼查看/按本地日历查询）。
+
+若你的旧表字段仍叫 `open_time_utc`，先执行一次重命名脚本：
 
 ```bash
-python sync_okx_yesterday_15m.py --symbol XRP/USDT:USDT
+python rename_kline_column.py
 ```
 
-说明：
-- 会自动创建表 `okx_kline_15m`（不存在时）
-- 默认按 `Asia/Shanghai` 的“昨日自然日”抓取 `15m` K线
-- 可通过 `--tz` 指定时区，例如 `--tz UTC`
+若你之前已同步过历史数据且时间仍是 UTC，可再执行一次迁移脚本把历史行改写为上海时区时间：
+
+```bash
+python migrate_kline_timezone.py
+```
+
+### 清理旧表（可选）
+如果你之前创建过旧表 `okx_kline_15m`，且确认没有外部报表/脚本依赖它，可执行：
+
+```sql
+DROP TABLE IF EXISTS okx_kline_15m;
+```
 
 ## 本地日志
 运行期间脚本会优先将交易/事件记录到 MySQL（当 `MYSQL_*` 配置完整时）；否则回退到 `trading_logs.db`（SQLite）。

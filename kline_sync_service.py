@@ -7,6 +7,9 @@ from zoneinfo import ZoneInfo
 import pymysql
 import requests
 
+STORAGE_TZ_NAME = "Asia/Shanghai"
+STORAGE_TZ = ZoneInfo(STORAGE_TZ_NAME)
+
 TIMEFRAME_ALIASES = {
     "5m": "5m",
     "15m": "15m",
@@ -118,7 +121,7 @@ def ensure_table(conn) -> None:
         symbol VARCHAR(64) NOT NULL,
         timeframe VARCHAR(16) NOT NULL,
         open_time_ms BIGINT NOT NULL,
-        open_time_utc DATETIME NOT NULL,
+        open_time_shanghai DATETIME NOT NULL COMMENT 'Asia/Shanghai local time (UTC+8)',
         open_price DOUBLE,
         high_price DOUBLE,
         low_price DOUBLE,
@@ -133,6 +136,20 @@ def ensure_table(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(sql)
     conn.commit()
+
+    # Backward compatible: if an older table still uses `open_time_utc`, rename it in-place.
+    with conn.cursor() as cur:
+        cur.execute("SHOW COLUMNS FROM okx_kline LIKE 'open_time_shanghai'")
+        has_new = bool(cur.fetchone())
+        cur.execute("SHOW COLUMNS FROM okx_kline LIKE 'open_time_utc'")
+        has_old = bool(cur.fetchone())
+        if (not has_new) and has_old:
+            cur.execute(
+                "ALTER TABLE okx_kline "
+                "CHANGE COLUMN open_time_utc open_time_shanghai DATETIME NOT NULL "
+                "COMMENT 'Asia/Shanghai local time (UTC+8)'"
+            )
+            conn.commit()
 
 
 def _ccxt_symbol_to_inst_id(symbol: str) -> str:
@@ -230,22 +247,39 @@ def upsert_rows(conn, symbol: str, timeframe: str, rows: list[list[float]]) -> i
 
     sql = """
     INSERT INTO okx_kline (
-        symbol, timeframe, open_time_ms, open_time_utc,
-        open_price, high_price, low_price, close_price, volume
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        symbol, timeframe, open_time_ms, open_time_shanghai,
+        open_price, high_price, low_price, close_price, volume,
+        created_at, updated_at
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE
         open_price = VALUES(open_price),
         high_price = VALUES(high_price),
         low_price = VALUES(low_price),
         close_price = VALUES(close_price),
         volume = VALUES(volume),
-        updated_at = CURRENT_TIMESTAMP
+        updated_at = VALUES(updated_at)
     """
 
+    now_shanghai = datetime.now(tz=STORAGE_TZ).replace(tzinfo=None)
     payload = []
     for ts_ms, o, h, l, c, v in rows:
-        open_time_utc = datetime.fromtimestamp(int(ts_ms) / 1000, tz=timezone.utc).replace(tzinfo=None)
-        payload.append((symbol, timeframe, int(ts_ms), open_time_utc, float(o), float(h), float(l), float(c), float(v)))
+        # Store Shanghai local time (UTC+8) for easier inspection/querying.
+        open_time_shanghai = datetime.fromtimestamp(int(ts_ms) / 1000, tz=STORAGE_TZ).replace(tzinfo=None)
+        payload.append(
+            (
+                symbol,
+                timeframe,
+                int(ts_ms),
+                open_time_shanghai,
+                float(o),
+                float(h),
+                float(l),
+                float(c),
+                float(v),
+                now_shanghai,
+                now_shanghai,
+            )
+        )
 
     with conn.cursor() as cur:
         affected = cur.executemany(sql, payload)

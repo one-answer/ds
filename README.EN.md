@@ -117,18 +117,28 @@ Optional environment variables:
 - `WEB_MANAGER_DEBUG` (`1` enables Flask debug)
 
 ## Import yesterday 15m K-lines into MySQL
-Make sure `.env` has: `MYSQL_USERNAME`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DB`.
+This project now writes all klines into the MySQL table `okx_kline` (with a `timeframe` column). Use the Web manager K-line sync panel or call the sync functions in `kline_sync_service.py`.
 
-Run:
+Note: the kline table `okx_kline` uses the column `open_time_shanghai`, and it stores **Asia/Shanghai local time (UTC+8)** (so it’s easier to inspect/query by local calendar).
+
+If your legacy table still uses the old column name `open_time_utc`, run this one-time rename:
 
 ```bash
-python sync_okx_yesterday_15m.py --symbol XRP/USDT:USDT
+python rename_kline_column.py
 ```
 
-Notes:
-- Auto-creates `okx_kline_15m` if missing
-- Uses `Asia/Shanghai` natural-day "yesterday" by default
-- You can pass timezone via `--tz`, for example `--tz UTC`
+If you already synced historical data before and the stored time is still UTC, run this one-time migration to rewrite historical rows to Shanghai local time:
+
+```bash
+python migrate_kline_timezone.py
+```
+
+### Cleanup legacy table (optional)
+If you previously created the legacy table `okx_kline_15m` and nothing external depends on it, you can drop it:
+
+```sql
+DROP TABLE IF EXISTS okx_kline_15m;
+```
 
 ## Local logs
 During runtime the scripts write trades/events to MySQL first when `MYSQL_*` variables are fully configured; otherwise they fall back to `trading_logs.db` (SQLite).
