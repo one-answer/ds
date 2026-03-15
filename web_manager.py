@@ -169,7 +169,10 @@ def load_strategies() -> dict:
             override = overrides.get(key, {})
             amount = float(override.get("amount", base_amount))
             leverage = float(override.get("leverage", base_leverage))
+            timeframe = str(override.get("timeframe") or "")
             args = ["--strategy-id", sid, "--symbol", symbol, "--amount", str(amount), "--leverage", str(leverage)]
+            if timeframe:
+                args.extend(["--timeframe", timeframe])
             entry = {
                 "script": "rule_trade.py",
                 "args": args,
@@ -179,6 +182,7 @@ def load_strategies() -> dict:
                 "type": override.get("type") or "backtest",
                 "amount": amount,
                 "leverage": leverage,
+                "timeframe": timeframe,
             }
             strategies[key] = _normalize_strategy_entry(key, entry)
 
@@ -200,6 +204,10 @@ def load_strategies() -> dict:
                     entry["leverage"] = float(v)
                 except Exception:
                     pass
+        if entry.get("timeframe") is None:
+            v = _extract_arg_value(args, "--timeframe")
+            if v is not None:
+                entry["timeframe"] = v
 
     return strategies
 
@@ -415,26 +423,43 @@ def api_strategy_config(name: str):
         return jsonify({"error": f"unknown strategy: {name}"}), 404
 
     body = request.get_json(silent=True) or {}
-    try:
-        amount = float(body.get("amount"))
-    except (TypeError, ValueError):
-        return jsonify({"error": "invalid amount"}), 400
-    try:
-        leverage = float(body.get("leverage"))
-    except (TypeError, ValueError):
-        return jsonify({"error": "invalid leverage"}), 400
+    amount = None
+    leverage = None
+    timeframe = None
 
-    if amount <= 0 or leverage <= 0:
-        return jsonify({"error": "amount/leverage must be > 0"}), 400
+    if "amount" in body:
+        try:
+            amount = float(body.get("amount"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid amount"}), 400
+        if amount <= 0:
+            return jsonify({"error": "amount must be > 0"}), 400
+
+    if "leverage" in body:
+        try:
+            leverage = float(body.get("leverage"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid leverage"}), 400
+        if leverage <= 0:
+            return jsonify({"error": "leverage must be > 0"}), 400
+
+    if "timeframe" in body:
+        tf = normalize_timeframe(body.get("timeframe"))
+        if not tf:
+            return jsonify({"error": "invalid timeframe"}), 400
+        timeframe = tf
 
     overrides = _load_registry_overrides()
-    overrides[name] = {
-        **(overrides.get(name) or {}),
-        "amount": amount,
-        "leverage": leverage,
-    }
+    merged = dict(overrides.get(name) or {})
+    if amount is not None:
+        merged["amount"] = amount
+    if leverage is not None:
+        merged["leverage"] = leverage
+    if timeframe is not None:
+        merged["timeframe"] = timeframe
+    overrides[name] = merged
     _save_registry_overrides(overrides)
-    return jsonify({"ok": True, "amount": amount, "leverage": leverage})
+    return jsonify({"ok": True, "amount": merged.get("amount"), "leverage": merged.get("leverage"), "timeframe": merged.get("timeframe")})
 
 
 @app.get("/api/kline/options")

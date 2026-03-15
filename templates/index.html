@@ -585,6 +585,44 @@
       background: rgba(255, 255, 255, 0.12);
     }
 
+    .simple-panel {
+      border-radius: 16px;
+      padding: 14px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      margin-bottom: 12px;
+    }
+
+    .simple-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .simple-actions {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .advanced-wrap {
+      margin-top: 10px;
+    }
+
+    .advanced-toggle {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
     .inline-params {
       display: flex;
       flex-wrap: wrap;
@@ -814,13 +852,48 @@
   </section>
 
   <section class="tab-panel" id="panel-trading" role="tabpanel" aria-labelledby="tab-trading" hidden>
-    <div class="filter-row" id="strategy-filters">
-      <button class="filter-btn" data-filter="all" aria-pressed="true" data-i18n="filter_all">All</button>
-      <button class="filter-btn" data-filter="ai" aria-pressed="false" data-i18n="filter_ai">AI</button>
-      <button class="filter-btn" data-filter="backtest" aria-pressed="false" data-i18n="filter_backtest">Backtest</button>
-      <button class="filter-btn" data-filter="custom" aria-pressed="false" data-i18n="filter_custom">Custom</button>
+    <section class="simple-panel">
+      <h2 class="sync-title" data-i18n="quick_start">Quick Start</h2>
+      <div class="simple-grid">
+        <div class="field">
+          <label for="qs-symbol" data-i18n="symbol">Symbol</label>
+          <select id="qs-symbol"></select>
+        </div>
+        <div class="field">
+          <label for="qs-timeframe" data-i18n="timeframe">Timeframe</label>
+          <select id="qs-timeframe"></select>
+        </div>
+        <div class="field">
+          <label for="qs-strategy" data-i18n="strategy">Strategy</label>
+          <select id="qs-strategy"></select>
+        </div>
+        <div class="field">
+          <label for="qs-mode" data-i18n="start_mode">Start mode:</label>
+          <select id="qs-mode">
+            <option value="live" data-i18n="mode_live">Live (Real Trading)</option>
+            <option value="paper" data-i18n="mode_paper">Simulated (Paper)</option>
+          </select>
+        </div>
+      </div>
+      <div class="simple-actions">
+        <button class="btn btn-start" id="qs-start" data-i18n="start">Start</button>
+        <button class="btn btn-stop" id="qs-stop" data-i18n="stop">Stop</button>
+        <p class="sync-result" id="qs-result"></p>
+      </div>
+    </section>
+
+    <div class="advanced-wrap">
+      <button class="advanced-toggle" id="toggle-advanced" data-i18n="show_advanced">Show advanced</button>
+      <div id="advanced-panel" style="display:none;">
+        <div class="filter-row" id="strategy-filters">
+          <button class="filter-btn" data-filter="all" aria-pressed="true" data-i18n="filter_all">All</button>
+          <button class="filter-btn" data-filter="ai" aria-pressed="false" data-i18n="filter_ai">AI</button>
+          <button class="filter-btn" data-filter="backtest" aria-pressed="false" data-i18n="filter_backtest">Backtest</button>
+          <button class="filter-btn" data-filter="custom" aria-pressed="false" data-i18n="filter_custom">Custom</button>
+        </div>
+        <section class="grid" id="cards"></section>
+      </div>
     </div>
-    <section class="grid" id="cards"></section>
   </section>
 </div>
 
@@ -921,6 +994,10 @@
       save_config: "Save",
       save_ok: "Saved",
       save_failed: "Save failed",
+      quick_start: "Quick Start",
+      show_advanced: "Show advanced",
+      hide_advanced: "Hide advanced",
+      quick_start_failed: "Quick start failed",
       running: "Running",
       stopped: "Stopped",
       meta_script: "Script",
@@ -1027,6 +1104,10 @@
       save_config: "保存",
       save_ok: "已保存",
       save_failed: "保存失败",
+      quick_start: "快速启动",
+      show_advanced: "显示高级",
+      hide_advanced: "隐藏高级",
+      quick_start_failed: "快速启动失败",
       running: "运行中",
       stopped: "已停止",
       meta_script: "脚本",
@@ -1087,6 +1168,15 @@
   const panelTrading = document.getElementById("panel-trading");
   const cards = document.getElementById("cards");
   const strategyFilters = document.getElementById("strategy-filters");
+  const quickSymbol = document.getElementById("qs-symbol");
+  const quickTimeframe = document.getElementById("qs-timeframe");
+  const quickStrategy = document.getElementById("qs-strategy");
+  const quickMode = document.getElementById("qs-mode");
+  const quickStartBtn = document.getElementById("qs-start");
+  const quickStopBtn = document.getElementById("qs-stop");
+  const quickResult = document.getElementById("qs-result");
+  const toggleAdvanced = document.getElementById("toggle-advanced");
+  const advancedPanel = document.getElementById("advanced-panel");
   const toast = document.getElementById("toast");
   const refreshBtn = document.getElementById("refresh");
   const lastSync = document.getElementById("last-sync");
@@ -1125,6 +1215,7 @@
   const GLOBAL_MODE_KEY = "ds-global-start-mode";
   const ACTIVE_TAB_KEY = "ds-active-tab";
   const STRATEGY_FILTER_KEY = "ds-strategy-filter";
+  const ADVANCED_KEY = "ds-advanced-visible";
   let currentStrategyFilter = "all";
 
   const defaultKlineConfig = {
@@ -1217,6 +1308,29 @@
       return normalizeFilter(localStorage.getItem(STRATEGY_FILTER_KEY));
     } catch (err) {
       return "all";
+    }
+  }
+
+  function setAdvancedVisible(value) {
+    const visible = !!value;
+    if (advancedPanel) {
+      advancedPanel.style.display = visible ? "block" : "none";
+    }
+    if (toggleAdvanced) {
+      toggleAdvanced.textContent = visible ? t("hide_advanced") : t("show_advanced");
+    }
+    try {
+      localStorage.setItem(ADVANCED_KEY, visible ? "1" : "0");
+    } catch (err) {
+      // ignore storage errors
+    }
+  }
+
+  function getAdvancedVisible() {
+    try {
+      return localStorage.getItem(ADVANCED_KEY) === "1";
+    } catch (err) {
+      return false;
     }
   }
 
@@ -1700,6 +1814,8 @@
       updateBacktestParamsPlaceholder();
       updateBacktestStrategyDescription();
 
+      setupQuickStart(body);
+
       // Default date range: yesterday -> today
       const today = new Date();
       const formatDate = (date) => {
@@ -2043,6 +2159,77 @@
     return body;
   }
 
+  async function saveStrategyConfigPartial(name, payload) {
+    const response = await fetch(`/api/strategies/${name}/config`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || t("save_failed"));
+    return body;
+  }
+
+  function setupQuickStart(optionsBody) {
+    if (!quickSymbol || !quickTimeframe || !quickStrategy) return;
+    const symbols = optionsBody?.symbols || defaultKlineConfig.symbols || [];
+    const timeframes = optionsBody?.timeframes || defaultKlineConfig.range_timeframes || [];
+    fillSelectOptions(quickSymbol, symbols, true);
+    fillSelectOptions(quickTimeframe, timeframes, true);
+
+    const aiOption = {id: "ai", name: "DeepSeek AI", name_zh: "DeepSeek AI", type: "ai"};
+    const strategies = Array.isArray(optionsBody?.strategies) ? optionsBody.strategies : [];
+    const list = [aiOption, ...strategies];
+    quickStrategy.innerHTML = list.map((s) => {
+      const name = getLang() === "zh" ? (s.name_zh || s.name || s.id) : (s.name || s.id);
+      return `<option value="${s.id}" data-type="${s.type || "backtest"}">${name}</option>`;
+    }).join("");
+  }
+
+  function symbolKey(symbol) {
+    return String(symbol || "").replaceAll("/", "_").replaceAll(":", "_").toLowerCase();
+  }
+
+  async function quickStart() {
+    const symbol = quickSymbol.value;
+    const timeframe = quickTimeframe.value;
+    const strategyId = quickStrategy.value;
+    const mode = quickMode ? quickMode.value : "live";
+
+    if (!symbol || !timeframe || !strategyId) return;
+
+    if (strategyId === "ai") {
+      const name = symbol.includes("DOGE") ? "doge" : symbol.includes("XRP") ? "xrp" : "";
+      if (!name) throw new Error("AI strategy only supports DOGE/XRP currently");
+      await control(name, "start", mode);
+      quickResult.textContent = `${symbol} ${t("start")}`;
+      return;
+    }
+
+    const name = `bt_${strategyId}_${symbolKey(symbol)}`;
+    await saveStrategyConfigPartial(name, {timeframe});
+    await control(name, "start", mode);
+    quickResult.textContent = `${symbol} ${t("start")}`;
+  }
+
+  async function quickStop() {
+    const symbol = quickSymbol.value;
+    const strategyId = quickStrategy.value;
+    if (!symbol || !strategyId) return;
+
+    if (strategyId === "ai") {
+      const name = symbol.includes("DOGE") ? "doge" : symbol.includes("XRP") ? "xrp" : "";
+      if (!name) throw new Error("AI strategy only supports DOGE/XRP currently");
+      await control(name, "stop");
+      quickResult.textContent = `${symbol} ${t("stop")}`;
+      return;
+    }
+
+    const name = `bt_${strategyId}_${symbolKey(symbol)}`;
+    await control(name, "stop");
+    quickResult.textContent = `${symbol} ${t("stop")}`;
+  }
+
   async function loadLogs(name) {
     const response = await fetch(`/api/strategies/${name}/logs?lines=150`);
     const body = await response.json();
@@ -2087,6 +2274,9 @@
   });
 
   refreshBtn.addEventListener("click", () => render(true));
+  toggleAdvanced?.addEventListener("click", () => {
+    setAdvancedVisible(!getAdvancedVisible());
+  });
   strategyFilters?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-filter]");
     if (!button) return;
@@ -2099,6 +2289,20 @@
   btStrategy.addEventListener("change", updateBacktestParamsPlaceholder);
   btRunBtn.addEventListener("click", async () => {
     await runBacktest();
+  });
+  quickStartBtn?.addEventListener("click", async () => {
+    try {
+      await quickStart();
+    } catch (err) {
+      showToast(err.message || t("quick_start_failed"));
+    }
+  });
+  quickStopBtn?.addEventListener("click", async () => {
+    try {
+      await quickStop();
+    } catch (err) {
+      showToast(err.message || t("quick_start_failed"));
+    }
   });
   klineSyncBtn.addEventListener("click", async () => {
     try {
@@ -2127,6 +2331,7 @@
   });
 
   applyI18n();
+  setAdvancedVisible(getAdvancedVisible());
   setStrategyFilter(getStrategyFilter());
   setInterval(render, 6000);
 </script>

@@ -1,18 +1,27 @@
-[
-  {
+{
+  "doge": {
     "name": "doge",
     "display": "DOGE",
     "script": "deepseek_trade.py",
-    "args": ["--strategy", "doge"],
+    "args": [
+      "--strategy",
+      "doge"
+    ],
     "proc_match": "deepseek_trade.py --strategy doge",
     "log": "app_doge.log"
   },
-  {
+  "xrp": {
     "name": "xrp",
     "display": "XRP",
     "script": "deepseek_trade.py",
-    "args": ["--strategy", "xrp"],
+    "args": [
+      "--strategy",
+      "xrp"
+    ],
     "proc_match": "deepseek_trade.py --strategy xrp",
     "log": "app_xrp.log"
+  },
+  "bt_adaptive_reversion_btc_usdt_usdt": {
+    "timeframe": "1m"
   }
-]
+}
