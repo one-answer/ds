@@ -262,6 +262,143 @@
       white-space: pre-wrap;
     }
 
+    .bt-result {
+      margin-top: 12px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .bt-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--card-border);
+      background: rgba(0, 0, 0, 0.2);
+      box-shadow: var(--shadow);
+    }
+
+    .bt-summary-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bt-summary-title {
+      font-weight: 800;
+      font-size: 0.98rem;
+    }
+
+    .bt-summary-sub {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .bt-kpis {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .bt-kpi {
+      border-radius: 12px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .bt-kpi-label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-bottom: 4px;
+    }
+
+    .bt-kpi-value {
+      font-size: 1.02rem;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .bt-kpi-value.positive {
+      color: var(--success-text);
+    }
+
+    .bt-kpi-value.negative {
+      color: var(--danger-text);
+    }
+
+    .bt-meta {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+
+    .bt-meta-item {
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .bt-meta-label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-bottom: 4px;
+    }
+
+    .bt-meta-value {
+      font-size: 0.82rem;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .bt-table-wrap {
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.22);
+      overflow: hidden;
+    }
+
+    .bt-table-title {
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 0.82rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.76rem;
+    }
+
+    .bt-table th,
+    .bt-table td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .bt-table th {
+      color: var(--muted);
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bt-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .bt-empty {
+      padding: 12px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
     .skeleton {
       border-radius: 10px;
       background: linear-gradient(100deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.18) 36%, rgba(255, 255, 255, 0.06) 65%);
@@ -553,7 +690,7 @@
         <button class="btn btn-start" id="bt-run-btn" data-i18n="run_backtest">Run Backtest</button>
         <p class="sync-result" id="bt-result">Ready.</p>
       </div>
-      <div class="log-view" id="bt-details" style="display:none;"></div>
+      <div class="bt-result" id="bt-details" style="display:none;"></div>
     </section>
   </section>
 
@@ -622,6 +759,9 @@
       bt_profit_factor: "profit_factor",
       bt_sharpe_like: "sharpe_like",
       bt_trades_preview: "trades_preview",
+      bt_side: "Side",
+      bt_overview: "Overview",
+      bt_details: "Details",
       bt_empty: "(empty)",
       bt_entry: "entry",
       bt_exit: "exit",
@@ -710,6 +850,9 @@
       bt_profit_factor: "盈利因子",
       bt_sharpe_like: "夏普(简化)",
       bt_trades_preview: "交易预览",
+      bt_side: "方向",
+      bt_overview: "概览",
+      bt_details: "详情",
       bt_empty: "(空)",
       bt_entry: "开仓",
       bt_exit: "平仓",
@@ -1052,16 +1195,134 @@
     klineResult.textContent = text;
   }
 
-  function showBacktestResult(text, details = "") {
+  function showBacktestResult(text, details = null) {
     btResult.textContent = text;
-    const detailText = (details || "").trim();
-    if (detailText) {
-      btDetails.style.display = "block";
-      btDetails.textContent = detailText;
-    } else {
+    if (!details || typeof details !== "object") {
       btDetails.style.display = "none";
-      btDetails.textContent = "";
+      btDetails.innerHTML = "";
+      return;
     }
+    btDetails.style.display = "grid";
+    btDetails.innerHTML = renderBacktestDetails(details);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function formatPct(value, digits = 2) {
+    return `${Number(value ?? 0).toFixed(digits)}%`;
+  }
+
+  function formatNum(value, digits = 2) {
+    return Number(value ?? 0).toFixed(digits);
+  }
+
+  function toneForValue(value) {
+    const n = Number(value ?? 0);
+    if (Number.isNaN(n)) return "";
+    if (n > 0) return "positive";
+    if (n < 0) return "negative";
+    return "";
+  }
+
+  function renderBacktestDetails(payload) {
+    const r = payload.result || {};
+    const strategyObj = r.strategy || {};
+    const strategyName = (btStrategy && btStrategy.selectedOptions && btStrategy.selectedOptions[0])
+      ? btStrategy.selectedOptions[0].textContent
+      : (strategyObj.name || strategyObj.id || "");
+
+    const headline = t("backtest_finished");
+    const summarySub = `${escapeHtml(r.symbol || "")} · ${escapeHtml(r.timeframe || "")} · ${escapeHtml(r.tz || "")} · ${escapeHtml(r.start_date || "")} → ${escapeHtml(r.end_date || "")}`;
+
+    const kpis = [
+      { label: t("bt_total"), value: formatPct(r.total_return_pct), tone: toneForValue(r.total_return_pct) },
+      { label: t("bt_pnl"), value: formatNum(r.pnl_capital), tone: toneForValue(r.pnl_capital) },
+      { label: t("bt_equity_end"), value: formatNum(r.equity_end_capital) },
+      { label: t("bt_dd"), value: formatPct(r.max_drawdown_pct), tone: "negative" },
+      { label: t("bt_win"), value: formatPct(r.win_rate_pct, 1) },
+      { label: t("bt_bh"), value: formatPct(r.buy_hold_return_pct), tone: toneForValue(r.buy_hold_return_pct) },
+      { label: t("bt_profit_factor"), value: r.profit_factor != null ? formatNum(r.profit_factor, 3) : "--" },
+      { label: t("bt_sharpe_like"), value: r.sharpe_like != null ? formatNum(r.sharpe_like, 3) : "--" },
+      { label: t("bt_candles"), value: r.candles ?? "--" },
+      { label: t("bt_trades"), value: r.trades ?? "--" },
+    ];
+
+    const metaItems = [
+      { label: t("strategy"), value: `${strategyName} ${strategyObj.id ? `(${strategyObj.id})` : ""}`.trim() },
+      { label: t("leverage"), value: r.leverage ?? "--" },
+      { label: t("fee_bps_side"), value: r.fee_bps ?? "--" },
+      { label: t("slippage_bps_side"), value: r.slippage_bps ?? "--" },
+      { label: t("symbol"), value: r.symbol ?? "--" },
+      { label: t("timeframe"), value: r.timeframe ?? "--" },
+      { label: t("timezone"), value: r.tz ?? "--" },
+      { label: t("date_range"), value: `${r.start_date || "--"} → ${r.end_date || "--"}` },
+      { label: t("initial_capital"), value: formatNum(r.initial_capital) },
+      { label: t("bt_equity_end"), value: formatNum(r.equity_end_capital) },
+      { label: t("bt_pnl"), value: formatNum(r.pnl_capital) },
+    ];
+
+    const preview = Array.isArray(r.trades_preview) ? r.trades_preview : [];
+    const tradesHtml = preview.length
+      ? `<table class="bt-table">
+          <thead>
+            <tr>
+              <th>${escapeHtml(t("bt_side"))}</th>
+              <th>${escapeHtml(t("bt_entry"))}</th>
+              <th>${escapeHtml(t("bt_exit"))}</th>
+              <th>${escapeHtml(t("bt_ret"))}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${preview.map((trade) => {
+              const sideLabel = trade.side === "SHORT" ? t("side_short") : t("side_long");
+              const ret = formatPct(trade.return_pct, 2);
+              const tone = toneForValue(trade.return_pct);
+              return `<tr>
+                <td>${escapeHtml(sideLabel)}</td>
+                <td>${escapeHtml(trade.entry_price)}</td>
+                <td>${escapeHtml(trade.exit_price)}</td>
+                <td class="${tone ? `bt-kpi-value ${tone}` : ""}">${escapeHtml(ret)}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>`
+      : `<div class="bt-empty">${escapeHtml(t("bt_trades_preview"))}: ${escapeHtml(t("bt_empty"))}</div>`;
+
+    return `
+      <div class="bt-summary">
+        <div class="bt-summary-main">
+          <div class="bt-summary-title">${escapeHtml(headline)}</div>
+          <div class="bt-summary-sub">${summarySub}</div>
+        </div>
+      </div>
+      <div class="bt-kpis">
+        ${kpis.map((k) => `
+          <div class="bt-kpi">
+            <div class="bt-kpi-label">${escapeHtml(k.label)}</div>
+            <div class="bt-kpi-value ${k.tone || ""}">${escapeHtml(k.value)}</div>
+          </div>
+        `).join("")}
+      </div>
+      <div class="bt-meta">
+        ${metaItems.map((m) => `
+          <div class="bt-meta-item">
+            <div class="bt-meta-label">${escapeHtml(m.label)}</div>
+            <div class="bt-meta-value">${escapeHtml(m.value)}</div>
+          </div>
+        `).join("")}
+      </div>
+      <div class="bt-table-wrap">
+        <div class="bt-table-title">${escapeHtml(t("bt_trades_preview"))}</div>
+        ${tradesHtml}
+      </div>
+    `;
   }
 
   function safeParseJsonOrEmpty(text) {
@@ -1246,7 +1507,7 @@
         lines.push(`${t("bt_trades_preview")}: ${t("bt_empty")}`);
       }
 
-      showBacktestResult(headline, lines.join("\n"));
+      showBacktestResult(headline, { result: r });
       showToast(t("backtest_finished"));
     } catch (err) {
       showBacktestResult(err.message || t("backtest_failed"));
