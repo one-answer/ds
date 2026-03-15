@@ -355,6 +355,13 @@ def api_backtest_options():
                 "name_zh": meta.get("name_zh", ""),
                 "description": meta.get("description", ""),
                 "description_zh": meta.get("description_zh", ""),
+                "param_labels": meta.get("param_labels") or {},
+                "param_labels_zh": meta.get("param_labels_zh") or {},
+                "param_help": meta.get("param_help") or {},
+                "param_help_zh": meta.get("param_help_zh") or {},
+                "param_range": meta.get("param_range") or {},
+                "param_presets": meta.get("param_presets") or {},
+                "param_presets_zh": meta.get("param_presets_zh") or {},
                 "defaults": meta.get("defaults") or {},
             }
         )

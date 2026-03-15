@@ -399,6 +399,72 @@
       font-size: 0.78rem;
     }
 
+    .bt-params {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.16);
+    }
+
+    .bt-param-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bt-param-label {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .bt-param-help {
+      color: var(--muted);
+      font-size: 0.7rem;
+      line-height: 1.3;
+    }
+
+    .bt-param-input {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 0.82rem;
+    }
+
+    .bt-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      grid-column: 1 / -1;
+    }
+
+    .bt-presets-label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-right: 4px;
+    }
+
+    .bt-preset-btn {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.2s ease;
+    }
+
+    .bt-preset-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
     .skeleton {
       border-radius: 10px;
       background: linear-gradient(100deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.18) 36%, rgba(255, 255, 255, 0.06) 65%);
@@ -683,7 +749,8 @@
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label for="bt-params" data-i18n="strategy_params">Strategy Params (JSON)</label>
-          <input id="bt-params" type="text" placeholder='{"fast":10,"slow":30}'>
+          <input id="bt-params" type="text" placeholder='{"fast":10,"slow":30}' style="display:none;">
+          <div class="bt-params" id="bt-params-ui"></div>
         </div>
       </div>
       <div class="sync-actions">
@@ -764,6 +831,10 @@
       bt_exit_time: "Exit time",
       bt_overview: "Overview",
       bt_details: "Details",
+      bt_params_help: "Strategy parameters",
+      bt_params_empty: "No editable parameters",
+      bt_params_range: "Suggested range",
+      bt_params_presets: "Presets",
       bt_empty: "(empty)",
       bt_entry: "entry",
       bt_exit: "exit",
@@ -857,6 +928,10 @@
       bt_exit_time: "出场时间",
       bt_overview: "概览",
       bt_details: "详情",
+      bt_params_help: "策略参数",
+      bt_params_empty: "暂无可编辑参数",
+      bt_params_range: "建议范围",
+      bt_params_presets: "预设档位",
       bt_empty: "(空)",
       bt_entry: "开仓",
       bt_exit: "平仓",
@@ -966,6 +1041,7 @@
   const btFeeBps = document.getElementById("bt-fee-bps");
   const btSlippageBps = document.getElementById("bt-slippage-bps");
   const btParams = document.getElementById("bt-params");
+  const btParamsUi = document.getElementById("bt-params-ui");
   const btRunBtn = document.getElementById("bt-run-btn");
   const btResult = document.getElementById("bt-result");
   const btDetails = document.getElementById("bt-details");
@@ -1396,6 +1472,100 @@
       btParams.value = JSON.stringify(defaults);
     }
     updateBacktestStrategyDescription();
+    renderBacktestParamsForm(meta);
+  }
+
+  btParamsUi?.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target && target.matches("[data-param-key]")) {
+      syncParamsJsonFromUi();
+    }
+  });
+
+  function renderBacktestParamsForm(meta) {
+    if (!btParamsUi) return;
+    const defaults = meta?.defaults || {};
+    const entries = Object.entries(defaults || {});
+    if (!entries.length) {
+      btParamsUi.innerHTML = `<div class="bt-empty">${escapeHtml(t("bt_params_empty"))}</div>`;
+      btParams.value = "{}";
+      return;
+    }
+    const lang = getLang();
+    const labelMap = lang === "zh" ? (meta?.param_labels_zh || {}) : (meta?.param_labels || {});
+    const helpMap = lang === "zh" ? (meta?.param_help_zh || {}) : (meta?.param_help || {});
+    const rangeMap = meta?.param_range || {};
+    const presets = lang === "zh" ? (meta?.param_presets_zh || {}) : (meta?.param_presets || {});
+    const presetEntries = Object.entries(presets || {});
+
+    let presetsHtml = "";
+    if (presetEntries.length) {
+      presetsHtml = `
+        <div class="bt-presets">
+          <span class="bt-presets-label">${escapeHtml(t("bt_params_presets"))}:</span>
+          ${presetEntries.map(([key, preset]) => {
+            const label = (preset && preset.name) ? preset.name : key;
+            const params = preset && preset.params ? preset.params : preset;
+            return `<button type="button" class="bt-preset-btn" data-preset='${escapeHtml(JSON.stringify(params))}'>${escapeHtml(label)}</button>`;
+          }).join("")}
+        </div>
+      `;
+    }
+    const fieldsHtml = entries.map(([key, value]) => {
+      const type = typeof value;
+      const inputType = type === "number" ? "number" : "text";
+      const step = inputType === "number" ? "0.1" : "";
+      const val = value === null || value === undefined ? "" : value;
+      const label = labelMap[key] || key;
+      const help = helpMap[key] || "";
+      const range = Array.isArray(rangeMap[key]) ? rangeMap[key] : null;
+      const rangeText = range ? `${t("bt_params_range")}: ${range[0]} - ${range[1]}` : "";
+      return `
+        <div class="bt-param-field">
+          <label class="bt-param-label">${escapeHtml(label)}</label>
+          <input class="bt-param-input" data-param-key="${escapeHtml(key)}" type="${inputType}" value="${escapeHtml(val)}" step="${step}">
+          ${help ? `<div class="bt-param-help">${escapeHtml(help)}</div>` : ""}
+          ${rangeText ? `<div class="bt-param-help">${escapeHtml(rangeText)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+    btParamsUi.innerHTML = `${presetsHtml}${fieldsHtml}`;
+    syncParamsJsonFromUi();
+  }
+
+  btParamsUi?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!target || !target.classList.contains("bt-preset-btn")) return;
+    const presetText = target.getAttribute("data-preset") || "{}";
+    let preset = {};
+    try {
+      preset = JSON.parse(presetText);
+    } catch (err) {
+      preset = {};
+    }
+    Object.entries(preset).forEach(([key, value]) => {
+      const input = btParamsUi.querySelector(`[data-param-key="${key}"]`);
+      if (!input) return;
+      input.value = value;
+    });
+    syncParamsJsonFromUi();
+  });
+
+  function syncParamsJsonFromUi() {
+    if (!btParamsUi) return;
+    const inputs = btParamsUi.querySelectorAll("[data-param-key]");
+    const params = {};
+    inputs.forEach((input) => {
+      const key = input.getAttribute("data-param-key");
+      if (!key) return;
+      if (input.type === "number") {
+        const num = Number(input.value);
+        params[key] = Number.isNaN(num) ? 0 : num;
+      } else {
+        params[key] = input.value;
+      }
+    });
+    btParams.value = JSON.stringify(params);
   }
 
   async function loadBacktestOptions() {
