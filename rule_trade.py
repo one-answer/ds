@@ -74,7 +74,7 @@ def _build_signal_data(signal: str, price: float, params: dict, reason: str) -> 
     }
 
 
-def run(strategy_id: str, symbol: str, timeframe: str, amount: float, leverage: float, params_text: str | None) -> None:
+def run(strategy_id: str, symbol: str, timeframe: str, amount: float, leverage: float, params_text=None) -> None:
     load_dotenv()
 
     if strategy_id not in STRATEGIES:

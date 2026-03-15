@@ -1888,29 +1888,29 @@
       <article class="card" data-name="${item.name}" data-type="${item.type || "custom"}">
         <div class="card-head">
           <h3 class="card-title">${item.display}</h3>
-          <span class="status-pill ${statusClass}">${statusText}</span>
+          <span class="status-pill ${statusClass}" data-role="status">${statusText}</span>
         </div>
 
         <div class="meta-grid">
           <div class="meta-box">
             <div class="meta-k">${t("meta_script")}</div>
-            <div class="meta-v">${item.script}</div>
+            <div class="meta-v" data-role="script">${item.script}</div>
           </div>
           <div class="meta-box">
             <div class="meta-k">${t("meta_pid")}</div>
-            <div class="meta-v">${item.pid || "-"}</div>
+            <div class="meta-v" data-role="pid">${item.pid || "-"}</div>
           </div>
           <div class="meta-box">
             <div class="meta-k">${t("meta_started_at")}</div>
-            <div class="meta-v">${startedAt}</div>
+            <div class="meta-v" data-role="started">${startedAt}</div>
           </div>
           <div class="meta-box">
             <div class="meta-k">${t("meta_log_file")}</div>
-            <div class="meta-v">${item.log}</div>
+            <div class="meta-v" data-role="log">${item.log}</div>
           </div>
           <div class="meta-box">
             <div class="meta-k">${t("meta_trade_mode")}</div>
-            <div class="meta-v">${modeLabel}</div>
+            <div class="meta-v" data-role="trade-mode">${modeLabel}</div>
           </div>
         </div>
 
@@ -1942,6 +1942,49 @@
       </article>`;
   }
 
+  let lastOpenedLogs = {};
+
+  function updateCards(list) {
+    const existingCards = cards.querySelectorAll(".card");
+    if (!existingCards.length) return false;
+    const byName = new Map(list.map((item) => [item.name, item]));
+    let updated = false;
+    existingCards.forEach((card) => {
+      const name = card.dataset.name;
+      const item = byName.get(name);
+      if (!item) return;
+      updated = true;
+      const statusEl = card.querySelector("[data-role='status']");
+      const pidEl = card.querySelector("[data-role='pid']");
+      const startedEl = card.querySelector("[data-role='started']");
+      const logEl = card.querySelector("[data-role='log']");
+      const modeLabelEl = card.querySelector("[data-role='trade-mode']");
+      const modeSelect = card.querySelector("[data-role='mode']");
+      const startBtn = card.querySelector("[data-action='start']");
+      const stopBtn = card.querySelector("[data-action='stop']");
+
+      const running = !!item.running;
+      const statusText = running ? t("running") : t("stopped");
+      const statusClass = running ? "status-running" : "status-stopped";
+      if (statusEl) {
+        statusEl.textContent = statusText;
+        statusEl.classList.remove("status-running", "status-stopped");
+        statusEl.classList.add(statusClass);
+      }
+      if (pidEl) pidEl.textContent = item.pid || "-";
+      if (startedEl) startedEl.textContent = item.started_at ? new Date(item.started_at).toLocaleString() : "-";
+      if (logEl) logEl.textContent = item.log || "-";
+      if (modeLabelEl) {
+        const mode = item.mode === "paper" ? "paper" : "live";
+        modeLabelEl.textContent = mode === "paper" ? t("mode_label_paper") : t("mode_label_live");
+      }
+      if (modeSelect) modeSelect.disabled = running;
+      if (startBtn) startBtn.disabled = running;
+      if (stopBtn) stopBtn.disabled = !running;
+    });
+    return updated;
+  }
+
   async function render(showLoader = false) {
     if (showLoader) setLoading();
     try {
@@ -1949,8 +1992,27 @@
       const filtered = currentStrategyFilter === "all"
         ? list
         : list.filter((item) => (item.type || "custom") === currentStrategyFilter);
-      cards.innerHTML = filtered.map(cardTemplate).join("");
+      const updated = !showLoader && updateCards(filtered);
+      if (!updated) {
+        cards.innerHTML = filtered.map(cardTemplate).join("");
+      }
       lastSync.textContent = `${t("last_sync")}: ${new Date().toLocaleTimeString()}`;
+
+      const names = Object.keys(lastOpenedLogs);
+      if (names.length) {
+        await Promise.all(names.map(async (name) => {
+          const target = document.getElementById(`log-${name}`);
+          if (!target) return;
+          try {
+            const response = await fetch(`/api/strategies/${name}/logs?lines=150`);
+            const body = await response.json();
+            target.textContent = body.content || t("no_logs_yet");
+            target.scrollTop = target.scrollHeight;
+          } catch (err) {
+            // ignore refresh errors
+          }
+        }));
+      }
     } catch (err) {
       showToast(err.message || t("load_failed"));
     }
@@ -1987,6 +2049,7 @@
     const target = document.getElementById(`log-${name}`);
     target.textContent = body.content || t("no_logs_yet");
     target.scrollTop = target.scrollHeight;
+    lastOpenedLogs[name] = true;
   }
 
   cards.addEventListener("click", async (event) => {
