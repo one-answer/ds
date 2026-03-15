@@ -11,17 +11,17 @@ STORAGE_TZ_NAME = "Asia/Shanghai"
 STORAGE_TZ = ZoneInfo(STORAGE_TZ_NAME)
 
 TIMEFRAME_ALIASES = {
+    "1m": "1m",
     "5m": "5m",
     "15m": "15m",
     "1h": "1H",
     "1H": "1H",
     "1d": "1D",
     "1D": "1D",
-    "1m": "1M",
     "1M": "1M",
 }
 
-DAY_TIMEFRAMES = {"5m", "15m", "1H"}
+DAY_TIMEFRAMES = {"1m", "5m", "15m", "1H"}
 RANGE_TIMEFRAMES = {"1D", "1M"}
 
 

@@ -1129,14 +1129,14 @@
 
   const defaultKlineConfig = {
     symbols: ["BTC/USDT:USDT", "ETH/USDT:USDT", "DOGE/USDT:USDT", "XRP/USDT:USDT"],
-    day_timeframes: ["5m", "15m", "1H"],
-    range_timeframes: ["5m", "15m", "1H", "1D", "1M"],
+    day_timeframes: ["1m", "5m", "15m", "1H"],
+    range_timeframes: ["1m", "5m", "15m", "1H", "1D", "1M"],
     default_tz: "Asia/Shanghai",
   };
 
   let klineTimeframeOptions = {
-    day: ["5m", "15m", "1H"],
-    range: ["5m", "15m", "1H", "1D", "1M"],
+    day: ["1m", "5m", "15m", "1H"],
+    range: ["1m", "5m", "15m", "1H", "1D", "1M"],
   };
 
   function normalizeMode(value) {
@@ -1683,7 +1683,7 @@
       const body = await response.json();
 
       fillSelectOptions(btSymbol, body.symbols || defaultKlineConfig.symbols, true);
-      fillSelectOptions(btTimeframe, body.timeframes || ["15m"], true);
+      fillSelectOptions(btTimeframe, body.timeframes || defaultKlineConfig.range_timeframes, true);
 
       const strategies = Array.isArray(body.strategies) ? body.strategies : [];
       backtestStrategyMeta = {};

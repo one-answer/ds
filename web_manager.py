@@ -467,7 +467,7 @@ def api_kline_sync():
     try:
         if sync_type == "day":
             if timeframe not in DAY_TIMEFRAMES:
-                return jsonify({"error": "day sync only supports 5m, 15m, 1H"}), 400
+                return jsonify({"error": "day sync only supports 1m, 5m, 15m, 1H"}), 400
 
             day_text = str(body.get("date") or "").strip()
             if not day_text:
@@ -477,7 +477,7 @@ def api_kline_sync():
         else:
             allowed_range_timeframes = {*DAY_TIMEFRAMES, *RANGE_TIMEFRAMES}
             if timeframe not in allowed_range_timeframes:
-                return jsonify({"error": "range sync only supports 5m, 15m, 1H, 1D, 1M"}), 400
+                return jsonify({"error": "range sync only supports 1m, 5m, 15m, 1H, 1D, 1M"}), 400
 
             start_date = str(body.get("start_date") or "").strip()
             end_date = str(body.get("end_date") or "").strip()
