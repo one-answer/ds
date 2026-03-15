@@ -760,6 +760,8 @@
       bt_sharpe_like: "sharpe_like",
       bt_trades_preview: "trades_preview",
       bt_side: "Side",
+      bt_entry_time: "Entry time",
+      bt_exit_time: "Exit time",
       bt_overview: "Overview",
       bt_details: "Details",
       bt_empty: "(empty)",
@@ -851,6 +853,8 @@
       bt_sharpe_like: "夏普(简化)",
       bt_trades_preview: "交易预览",
       bt_side: "方向",
+      bt_entry_time: "进场时间",
+      bt_exit_time: "出场时间",
       bt_overview: "概览",
       bt_details: "详情",
       bt_empty: "(空)",
@@ -1223,6 +1227,24 @@
     return Number(value ?? 0).toFixed(digits);
   }
 
+  function formatTs(tsMs, tzName) {
+    const ms = Number(tsMs || 0);
+    if (!ms) return "--";
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        timeZone: tzName || "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date(ms));
+    } catch (err) {
+      return new Date(ms).toLocaleString();
+    }
+  }
+
   function toneForValue(value) {
     const n = Number(value ?? 0);
     if (Number.isNaN(n)) return "";
@@ -1274,7 +1296,9 @@
           <thead>
             <tr>
               <th>${escapeHtml(t("bt_side"))}</th>
+              <th>${escapeHtml(t("bt_entry_time"))}</th>
               <th>${escapeHtml(t("bt_entry"))}</th>
+              <th>${escapeHtml(t("bt_exit_time"))}</th>
               <th>${escapeHtml(t("bt_exit"))}</th>
               <th>${escapeHtml(t("bt_ret"))}</th>
             </tr>
@@ -1284,9 +1308,13 @@
               const sideLabel = trade.side === "SHORT" ? t("side_short") : t("side_long");
               const ret = formatPct(trade.return_pct, 2);
               const tone = toneForValue(trade.return_pct);
+              const entryTime = formatTs(trade.entry_ts_ms, r.tz);
+              const exitTime = formatTs(trade.exit_ts_ms, r.tz);
               return `<tr>
                 <td>${escapeHtml(sideLabel)}</td>
+                <td>${escapeHtml(entryTime)}</td>
                 <td>${escapeHtml(trade.entry_price)}</td>
+                <td>${escapeHtml(exitTime)}</td>
                 <td>${escapeHtml(trade.exit_price)}</td>
                 <td class="${tone ? `bt-kpi-value ${tone}` : ""}">${escapeHtml(ret)}</td>
               </tr>`;
