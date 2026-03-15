@@ -808,31 +808,108 @@ def execute_trade(
 
         # 下单逻辑
         try:
+            if signal == 'CLOSE':
+                if current_position and current_position.get('side') == 'long':
+                    print("平多仓...")
+                    exchange.create_market_order(
+                        trade_config['symbol'],
+                        'sell',
+                        current_position.get('size'),
+                        params={**{'reduceOnly': True}, **tag_param},
+                    )
+                elif current_position and current_position.get('side') == 'short':
+                    print("平空仓...")
+                    exchange.create_market_order(
+                        trade_config['symbol'],
+                        'buy',
+                        current_position.get('size'),
+                        params={**{'reduceOnly': True}, **tag_param},
+                    )
+                else:
+                    print("无持仓，忽略平仓信号")
+                print("订单执行成功")
+                time.sleep(2)
+                updated_position = get_current_position_fn()
+                try:
+                    save_trade_log_fn(
+                        price_data,
+                        deepseek_raw,
+                        signal_data,
+                        current_position,
+                        "close",
+                        required_margin,
+                        "success",
+                        updated_position,
+                        extra={"order_id": "", "fee": 0},
+                    )
+                except Exception:
+                    pass
+                return updated_position
+
             if signal == 'BUY':
                 if current_position and current_position.get('side') == 'short':
                     print("平空仓并开多仓...")
-                    exchange.create_market_order(trade_config['symbol'], 'buy', current_position.get('size'), params={**{'reduceOnly': True}, **tag_param})
+                    exchange.create_market_order(
+                        trade_config['symbol'],
+                        'buy',
+                        current_position.get('size'),
+                        params={**{'reduceOnly': True}, **tag_param},
+                    )
                     time.sleep(1)
                     exchange.create_market_order(trade_config['symbol'], 'buy', amount, params=tag_param)
                 elif current_position and current_position.get('side') == 'long':
                     print("已有多头持仓，保持现状")
                 else:
                     print("开多仓...")
-                    params = {**tag_param, 'takeProfit': {'triggerPrice': signal_data.get('take_profit'), 'price': signal_data.get('take_profit'), 'reduceOnly': True}, 'stopLoss': {'triggerPrice': signal_data.get('stop_loss'), 'price': signal_data.get('stop_loss'), 'reduceOnly': True}}
+                    params = {
+                        **tag_param,
+                        'takeProfit': {
+                            'triggerPrice': signal_data.get('take_profit'),
+                            'price': signal_data.get('take_profit'),
+                            'reduceOnly': True,
+                        },
+                        'stopLoss': {
+                            'triggerPrice': signal_data.get('stop_loss'),
+                            'price': signal_data.get('stop_loss'),
+                            'reduceOnly': True,
+                        },
+                    }
                     exchange.create_market_order(trade_config['symbol'], 'buy', amount, params=params)
 
             elif signal == 'SELL':
                 if current_position and current_position.get('side') == 'long':
                     print("平多仓并开空仓...")
-                    exchange.create_market_order(trade_config['symbol'], 'sell', current_position.get('size'), params={**{'reduceOnly': True}, **tag_param})
+                    exchange.create_market_order(
+                        trade_config['symbol'],
+                        'sell',
+                        current_position.get('size'),
+                        params={**{'reduceOnly': True}, **tag_param},
+                    )
                     time.sleep(1)
                     exchange.create_market_order(trade_config['symbol'], 'sell', amount, params=tag_param)
                 elif current_position and current_position.get('side') == 'short':
-                    exchange.create_market_order(trade_config['symbol'], 'buy', current_position.get('size'), params={**{'reduceOnly': True}, **tag_param})
+                    exchange.create_market_order(
+                        trade_config['symbol'],
+                        'buy',
+                        current_position.get('size'),
+                        params={**{'reduceOnly': True}, **tag_param},
+                    )
                     print("空头持仓已平仓")
                 else:
                     print("开空仓...")
-                    params = {**tag_param, 'takeProfit': {'triggerPrice': signal_data.get('take_profit'), 'price': signal_data.get('take_profit'), 'reduceOnly': True}, 'stopLoss': {'triggerPrice': signal_data.get('stop_loss'), 'price': signal_data.get('stop_loss'), 'reduceOnly': True}}
+                    params = {
+                        **tag_param,
+                        'takeProfit': {
+                            'triggerPrice': signal_data.get('take_profit'),
+                            'price': signal_data.get('take_profit'),
+                            'reduceOnly': True,
+                        },
+                        'stopLoss': {
+                            'triggerPrice': signal_data.get('stop_loss'),
+                            'price': signal_data.get('stop_loss'),
+                            'reduceOnly': True,
+                        },
+                    }
                     exchange.create_market_order(trade_config['symbol'], 'sell', amount, params=params)
 
             print("订单执行成功")
@@ -842,7 +919,17 @@ def execute_trade(
 
             # 保存交易日志
             try:
-                save_trade_log_fn(price_data, deepseek_raw, signal_data, current_position, operation_type, required_margin, "success", updated_position, extra={"order_id": "", "fee": 0})
+                save_trade_log_fn(
+                    price_data,
+                    deepseek_raw,
+                    signal_data,
+                    current_position,
+                    operation_type,
+                    required_margin,
+                    "success",
+                    updated_position,
+                    extra={"order_id": "", "fee": 0},
+                )
             except Exception:
                 pass
 
@@ -863,4 +950,3 @@ def execute_trade(
         import traceback
         traceback.print_exc()
         return None
-

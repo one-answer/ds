@@ -1,0 +1,18 @@
+[
+  {
+    "name": "doge",
+    "display": "DOGE",
+    "script": "deepseek_trade.py",
+    "args": ["--strategy", "doge"],
+    "proc_match": "deepseek_trade.py --strategy doge",
+    "log": "app_doge.log"
+  },
+  {
+    "name": "xrp",
+    "display": "XRP",
+    "script": "deepseek_trade.py",
+    "args": ["--strategy", "xrp"],
+    "proc_match": "deepseek_trade.py --strategy xrp",
+    "log": "app_xrp.log"
+  }
+]

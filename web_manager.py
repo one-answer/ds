@@ -22,14 +22,28 @@ from backtest_service import backtest_from_dates
 
 BASE_DIR = Path(__file__).resolve().parent
 STATE_FILE = BASE_DIR / "process_state.json"
+STRATEGY_REGISTRY = BASE_DIR / "strategies.json"
+DEFAULT_RULE_AMOUNTS = {
+    "BTC/USDT:USDT": 0.01,
+    "ETH/USDT:USDT": 0.1,
+    "DOGE/USDT:USDT": 50,
+    "XRP/USDT:USDT": 50,
+}
+DEFAULT_RULE_LEVERAGES = {
+    "BTC/USDT:USDT": 1,
+    "ETH/USDT:USDT": 1,
+    "DOGE/USDT:USDT": 1,
+    "XRP/USDT:USDT": 1,
+}
 
-STRATEGIES = {
+DEFAULT_STRATEGIES = {
     "doge": {
         "script": "deepseek_trade.py",
         "args": ["--strategy", "doge"],
         "proc_match": "deepseek_trade.py --strategy doge",
         "log": "app_doge.log",
         "display": "DOGE",
+        "type": "ai",
     },
     "xrp": {
         "script": "deepseek_trade.py",
@@ -37,6 +51,7 @@ STRATEGIES = {
         "proc_match": "deepseek_trade.py --strategy xrp",
         "log": "app_xrp.log",
         "display": "XRP",
+        "type": "ai",
     },
 }
 
@@ -84,6 +99,111 @@ def save_state(state: dict) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
+def _normalize_strategy_entry(name: str, data: dict) -> dict:
+    entry = dict(data or {})
+    entry["display"] = entry.get("display") or name.upper()
+    entry["script"] = entry.get("script") or ""
+    entry["args"] = entry.get("args") or []
+    entry["log"] = entry.get("log") or f"app_{name}.log"
+    entry["type"] = entry.get("type") or "custom"
+    if not entry.get("proc_match"):
+        entry["proc_match"] = " ".join([entry["script"], *entry["args"]]).strip()
+    return entry
+
+
+def _load_registry_overrides() -> dict:
+    if not STRATEGY_REGISTRY.exists():
+        return {}
+    try:
+        raw = json.loads(STRATEGY_REGISTRY.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+    if isinstance(raw, dict):
+        return {str(k): v for k, v in raw.items() if k}
+
+    if isinstance(raw, list):
+        overrides = {}
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            overrides[name] = item
+        return overrides
+
+    return {}
+
+
+def _save_registry_overrides(overrides: dict) -> None:
+    STRATEGY_REGISTRY.write_text(json.dumps(overrides, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _extract_arg_value(args: list, flag: str) -> Optional[str]:
+    try:
+        idx = args.index(flag)
+    except ValueError:
+        return None
+    if idx + 1 >= len(args):
+        return None
+    return str(args[idx + 1])
+
+
+def load_strategies() -> dict:
+    strategies = {k: _normalize_strategy_entry(k, v) for k, v in DEFAULT_STRATEGIES.items()}
+    overrides = _load_registry_overrides()
+
+    for name, data in overrides.items():
+        strategies[name] = _normalize_strategy_entry(name, data)
+
+    def _symbol_key(symbol: str) -> str:
+        return symbol.replace("/", "_").replace(":", "_").lower()
+
+    for sid, meta in BACKTEST_STRATEGIES.items():
+        for symbol in KLINE_SYMBOLS:
+            key = f"bt_{sid}_{_symbol_key(symbol)}"
+            display = f"{meta.get('name_zh') or meta.get('name') or sid} · {symbol}"
+            base_amount = DEFAULT_RULE_AMOUNTS.get(symbol, 1)
+            base_leverage = DEFAULT_RULE_LEVERAGES.get(symbol, 1)
+            override = overrides.get(key, {})
+            amount = float(override.get("amount", base_amount))
+            leverage = float(override.get("leverage", base_leverage))
+            args = ["--strategy-id", sid, "--symbol", symbol, "--amount", str(amount), "--leverage", str(leverage)]
+            entry = {
+                "script": "rule_trade.py",
+                "args": args,
+                "proc_match": f"rule_trade.py --strategy-id {sid} --symbol {symbol}",
+                "log": f"app_{key}.log",
+                "display": override.get("display") or display,
+                "type": override.get("type") or "backtest",
+                "amount": amount,
+                "leverage": leverage,
+            }
+            strategies[key] = _normalize_strategy_entry(key, entry)
+
+    for name, entry in strategies.items():
+        args = entry.get("args") or []
+        amount = entry.get("amount")
+        leverage = entry.get("leverage")
+        if amount is None:
+            v = _extract_arg_value(args, "--amount")
+            if v is not None:
+                try:
+                    entry["amount"] = float(v)
+                except Exception:
+                    pass
+        if leverage is None:
+            v = _extract_arg_value(args, "--leverage")
+            if v is not None:
+                try:
+                    entry["leverage"] = float(v)
+                except Exception:
+                    pass
+
+    return strategies
+
+
 def _is_pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -108,17 +228,17 @@ def _find_pid_by_script(script_name: str) -> Optional[int]:
     return None
 
 
-def _refresh_state(state: dict) -> dict:
+def _refresh_state(state: dict, strategies: dict) -> dict:
     updated = dict(state)
-    for name in STRATEGIES:
+    for name in strategies:
         pid = updated.get(name, {}).get("pid")
         if pid and not _is_pid_alive(pid):
             updated[name] = {}
     return updated
 
 
-def _strategy_status(name: str, state: dict) -> dict:
-    strategy = STRATEGIES[name]
+def _strategy_status(name: str, state: dict, strategies: dict) -> dict:
+    strategy = strategies[name]
     current = state.get(name, {})
     pid = current.get("pid")
     running = bool(pid and _is_pid_alive(pid))
@@ -157,8 +277,9 @@ def _normalize_sync_type(value) -> str:
 
 def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
     mode = _normalize_mode(mode)
-    state = _refresh_state(load_state())
-    status = _strategy_status(name, state)
+    strategies = load_strategies()
+    state = _refresh_state(load_state(), strategies)
+    status = _strategy_status(name, state, strategies)
     if status["running"]:
         state[name] = {
             "pid": status["pid"],
@@ -168,9 +289,9 @@ def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
         save_state(state)
         return False, f"{name} already running", status
 
-    strategy = STRATEGIES[name]
+    strategy = strategies[name]
     script_path = BASE_DIR / strategy["script"]
-    log_path = BASE_DIR / STRATEGIES[name]["log"]
+    log_path = BASE_DIR / strategies[name]["log"]
     args = strategy.get("args") or []
 
     with open(log_path, "a", encoding="utf-8") as log_file:
@@ -191,12 +312,13 @@ def _start_strategy(name: str, mode: str = "live") -> tuple[bool, str, dict]:
 
     state[name] = {"pid": proc.pid, "started_at": _utc_now_iso(), "mode": mode}
     save_state(state)
-    return True, f"{name} started in {mode} mode", _strategy_status(name, state)
+    return True, f"{name} started in {mode} mode", _strategy_status(name, state, strategies)
 
 
 def _stop_strategy(name: str, timeout_seconds: int = 8) -> tuple[bool, str, dict]:
-    state = _refresh_state(load_state())
-    status = _strategy_status(name, state)
+    strategies = load_strategies()
+    state = _refresh_state(load_state(), strategies)
+    status = _strategy_status(name, state, strategies)
     pid = status.get("pid")
 
     if not pid:
@@ -222,7 +344,7 @@ def _stop_strategy(name: str, timeout_seconds: int = 8) -> tuple[bool, str, dict
 
     state[name] = {}
     save_state(state)
-    return True, f"{name} stopped", _strategy_status(name, state)
+    return True, f"{name} stopped", _strategy_status(name, state, strategies)
 
 
 def _tail_log(file_path: Path, lines: int = 120) -> str:
@@ -240,14 +362,16 @@ def index():
 
 @app.get("/api/strategies")
 def api_strategies():
-    state = _refresh_state(load_state())
+    strategies = load_strategies()
+    state = _refresh_state(load_state(), strategies)
     save_state(state)
-    return jsonify([_strategy_status(name, state) for name in STRATEGIES])
+    return jsonify([_strategy_status(name, state, strategies) for name in strategies])
 
 
 @app.post("/api/strategies/<name>/start")
 def api_start(name: str):
-    if name not in STRATEGIES:
+    strategies = load_strategies()
+    if name not in strategies:
         return jsonify({"error": f"unknown strategy: {name}"}), 404
 
     body = request.get_json(silent=True) or {}
@@ -259,7 +383,8 @@ def api_start(name: str):
 
 @app.post("/api/strategies/<name>/stop")
 def api_stop(name: str):
-    if name not in STRATEGIES:
+    strategies = load_strategies()
+    if name not in strategies:
         return jsonify({"error": f"unknown strategy: {name}"}), 404
 
     changed, message, status = _stop_strategy(name)
@@ -268,7 +393,8 @@ def api_stop(name: str):
 
 @app.get("/api/strategies/<name>/logs")
 def api_logs(name: str):
-    if name not in STRATEGIES:
+    strategies = load_strategies()
+    if name not in strategies:
         return jsonify({"error": f"unknown strategy: {name}"}), 404
 
     try:
@@ -277,9 +403,38 @@ def api_logs(name: str):
         lines = 120
 
     lines = max(20, min(lines, 1000))
-    log_path = BASE_DIR / STRATEGIES[name]["log"]
+    log_path = BASE_DIR / strategies[name]["log"]
     content = _tail_log(log_path, lines)
-    return jsonify({"name": name, "log": STRATEGIES[name]["log"], "content": content})
+    return jsonify({"name": name, "log": strategies[name]["log"], "content": content})
+
+
+@app.post("/api/strategies/<name>/config")
+def api_strategy_config(name: str):
+    strategies = load_strategies()
+    if name not in strategies:
+        return jsonify({"error": f"unknown strategy: {name}"}), 404
+
+    body = request.get_json(silent=True) or {}
+    try:
+        amount = float(body.get("amount"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid amount"}), 400
+    try:
+        leverage = float(body.get("leverage"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid leverage"}), 400
+
+    if amount <= 0 or leverage <= 0:
+        return jsonify({"error": "amount/leverage must be > 0"}), 400
+
+    overrides = _load_registry_overrides()
+    overrides[name] = {
+        **(overrides.get(name) or {}),
+        "amount": amount,
+        "leverage": leverage,
+    }
+    _save_registry_overrides(overrides)
+    return jsonify({"ok": True, "amount": amount, "leverage": leverage})
 
 
 @app.get("/api/kline/options")

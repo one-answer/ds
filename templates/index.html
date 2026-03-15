@@ -557,6 +557,58 @@
       align-items: center;
     }
 
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 6px 0 12px;
+    }
+
+    .filter-btn {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.2s ease;
+    }
+
+    .filter-btn[aria-pressed="true"] {
+      background: rgba(91, 140, 255, 0.22);
+      border-color: rgba(91, 140, 255, 0.35);
+    }
+
+    .filter-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .inline-params {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 6px 0 10px;
+    }
+
+    .inline-params label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-right: 4px;
+    }
+
+    .inline-params input {
+      width: 110px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.78rem;
+    }
+
     .tab-btn {
       border: 1px solid transparent;
       background: transparent;
@@ -762,6 +814,12 @@
   </section>
 
   <section class="tab-panel" id="panel-trading" role="tabpanel" aria-labelledby="tab-trading" hidden>
+    <div class="filter-row" id="strategy-filters">
+      <button class="filter-btn" data-filter="all" aria-pressed="true" data-i18n="filter_all">All</button>
+      <button class="filter-btn" data-filter="ai" aria-pressed="false" data-i18n="filter_ai">AI</button>
+      <button class="filter-btn" data-filter="backtest" aria-pressed="false" data-i18n="filter_backtest">Backtest</button>
+      <button class="filter-btn" data-filter="custom" aria-pressed="false" data-i18n="filter_custom">Custom</button>
+    </div>
     <section class="grid" id="cards"></section>
   </section>
 </div>
@@ -854,6 +912,15 @@
       load_strategies_failed: "Failed to load strategies",
       operation_failed: "Operation failed",
       no_logs_yet: "No logs yet.",
+      filter_all: "All",
+      filter_ai: "AI",
+      filter_backtest: "Backtest",
+      filter_custom: "Custom",
+      strategy_amount: "Amount",
+      strategy_leverage: "Leverage",
+      save_config: "Save",
+      save_ok: "Saved",
+      save_failed: "Save failed",
       running: "Running",
       stopped: "Stopped",
       meta_script: "Script",
@@ -951,6 +1018,15 @@
       load_strategies_failed: "加载策略失败",
       operation_failed: "操作失败",
       no_logs_yet: "暂无日志。",
+      filter_all: "全部",
+      filter_ai: "AI",
+      filter_backtest: "回测",
+      filter_custom: "自定义",
+      strategy_amount: "手数",
+      strategy_leverage: "杠杆",
+      save_config: "保存",
+      save_ok: "已保存",
+      save_failed: "保存失败",
       running: "运行中",
       stopped: "已停止",
       meta_script: "脚本",
@@ -1010,6 +1086,7 @@
   const panelKline = document.getElementById("panel-kline");
   const panelTrading = document.getElementById("panel-trading");
   const cards = document.getElementById("cards");
+  const strategyFilters = document.getElementById("strategy-filters");
   const toast = document.getElementById("toast");
   const refreshBtn = document.getElementById("refresh");
   const lastSync = document.getElementById("last-sync");
@@ -1047,6 +1124,8 @@
   const btDetails = document.getElementById("bt-details");
   const GLOBAL_MODE_KEY = "ds-global-start-mode";
   const ACTIVE_TAB_KEY = "ds-active-tab";
+  const STRATEGY_FILTER_KEY = "ds-strategy-filter";
+  let currentStrategyFilter = "all";
 
   const defaultKlineConfig = {
     symbols: ["BTC/USDT:USDT", "ETH/USDT:USDT", "DOGE/USDT:USDT", "XRP/USDT:USDT"],
@@ -1109,6 +1188,35 @@
       localStorage.setItem(ACTIVE_TAB_KEY, normalized);
     } catch (err) {
       // ignore storage errors
+    }
+  }
+
+  function normalizeFilter(value) {
+    const v = String(value || "").toLowerCase();
+    if (v === "ai" || v === "backtest" || v === "custom") return v;
+    return "all";
+  }
+
+  function setStrategyFilter(value) {
+    currentStrategyFilter = normalizeFilter(value);
+    if (strategyFilters) {
+      strategyFilters.querySelectorAll("[data-filter]").forEach((btn) => {
+        const isActive = btn.getAttribute("data-filter") === currentStrategyFilter;
+        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    }
+    try {
+      localStorage.setItem(STRATEGY_FILTER_KEY, currentStrategyFilter);
+    } catch (err) {
+      // ignore storage errors
+    }
+  }
+
+  function getStrategyFilter() {
+    try {
+      return normalizeFilter(localStorage.getItem(STRATEGY_FILTER_KEY));
+    } catch (err) {
+      return "all";
     }
   }
 
@@ -1772,8 +1880,12 @@
     const startMode = item.running ? mode : getGlobalMode();
     const startedAt = item.started_at ? new Date(item.started_at).toLocaleString() : "-";
 
+    const amount = item.amount ?? "";
+    const leverage = item.leverage ?? "";
+    const isBacktest = (item.type || "custom") === "backtest";
+
     return `
-      <article class="card" data-name="${item.name}">
+      <article class="card" data-name="${item.name}" data-type="${item.type || "custom"}">
         <div class="card-head">
           <h3 class="card-title">${item.display}</h3>
           <span class="status-pill ${statusClass}">${statusText}</span>
@@ -1810,6 +1922,16 @@
           </select>
         </div>
 
+        ${isBacktest ? `
+        <div class="inline-params">
+          <label>${t("strategy_amount")}</label>
+          <input type="number" step="0.01" data-role="amount" value="${amount}">
+          <label>${t("strategy_leverage")}</label>
+          <input type="number" step="0.1" data-role="leverage" value="${leverage}">
+          <button class="btn btn-refresh" data-action="save-config">${t("save_config")}</button>
+        </div>
+        ` : ""}
+
         <div class="actions">
           <button class="btn btn-start" data-action="start" ${item.running ? "disabled" : ""}>${t("start")}</button>
           <button class="btn btn-stop" data-action="stop" ${item.running ? "" : "disabled"}>${t("stop")}</button>
@@ -1824,7 +1946,10 @@
     if (showLoader) setLoading();
     try {
       const list = await fetchStrategies();
-      cards.innerHTML = list.map(cardTemplate).join("");
+      const filtered = currentStrategyFilter === "all"
+        ? list
+        : list.filter((item) => (item.type || "custom") === currentStrategyFilter);
+      cards.innerHTML = filtered.map(cardTemplate).join("");
       lastSync.textContent = `${t("last_sync")}: ${new Date().toLocaleTimeString()}`;
     } catch (err) {
       showToast(err.message || t("load_failed"));
@@ -1841,6 +1966,19 @@
     const body = await response.json();
     showToast(body.message || `${action} completed`);
     await render();
+  }
+
+  async function saveStrategyConfig(name, amount, leverage) {
+    const response = await fetch(`/api/strategies/${name}/config`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({amount, leverage}),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || t("save_failed"));
+    }
+    return body;
   }
 
   async function loadLogs(name) {
@@ -1868,6 +2006,17 @@
         await control(name, action, selectedMode);
       } else if (action === "logs") {
         await loadLogs(name);
+      } else if (action === "save-config") {
+        const amountInput = card.querySelector("[data-role='amount']");
+        const leverageInput = card.querySelector("[data-role='leverage']");
+        const amount = amountInput ? Number(amountInput.value) : NaN;
+        const leverage = leverageInput ? Number(leverageInput.value) : NaN;
+        if (!Number.isFinite(amount) || !Number.isFinite(leverage) || amount <= 0 || leverage <= 0) {
+          throw new Error(t("save_failed"));
+        }
+        await saveStrategyConfig(name, amount, leverage);
+        showToast(t("save_ok"));
+        await render();
       }
     } catch (err) {
       showToast(err.message || t("operation_failed"));
@@ -1875,6 +2024,12 @@
   });
 
   refreshBtn.addEventListener("click", () => render(true));
+  strategyFilters?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-filter]");
+    if (!button) return;
+    setStrategyFilter(button.getAttribute("data-filter"));
+    render();
+  });
   tabKline.addEventListener("click", () => setActiveTab("kline"));
   tabTrading.addEventListener("click", () => setActiveTab("trading"));
   klineSyncType.addEventListener("change", updateKlineForm);
@@ -1909,6 +2064,7 @@
   });
 
   applyI18n();
+  setStrategyFilter(getStrategyFilter());
   setInterval(render, 6000);
 </script>
 </body>
