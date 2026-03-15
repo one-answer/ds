@@ -100,6 +100,20 @@ def _rsi(values: list[float], period: int) -> list[Optional[float]]:
     return rsis
 
 
+def _std(values: list[float], window: int, idx: int) -> Optional[float]:
+    if window <= 1:
+        return None
+    start = idx - window + 1
+    if start < 0:
+        return None
+    segment = values[start : idx + 1]
+    if not segment:
+        return None
+    mean = sum(segment) / float(window)
+    var = sum((v - mean) ** 2 for v in segment) / float(window)
+    return math.sqrt(var)
+
+
 def _max_drawdown(equity: list[float]) -> float:
     peak = -float("inf")
     max_dd = 0.0
@@ -223,6 +237,67 @@ def strategy_donchian_breakout(idx: int, candles: list[Candle], params: dict[str
     return current_pos
 
 
+def strategy_adaptive_reversion(idx: int, candles: list[Candle], params: dict[str, Any], current_pos: int) -> int:
+    closes = [c.close for c in candles]
+    fast = int(params.get("fast", 20))
+    slow = int(params.get("slow", 80))
+    if slow <= fast:
+        slow = fast + 1
+    band_k = float(params.get("band_k", 1.5))
+    trend_thresh = float(params.get("trend_thresh", 0.006))
+    rsi_period = int(params.get("rsi_period", 14))
+    rsi_buy = float(params.get("rsi_buy", 35))
+    rsi_sell = float(params.get("rsi_sell", 65))
+    exit_level = float(params.get("exit_level", 50))
+
+    fast_ma = _sma(closes, fast, idx)
+    slow_ma = _sma(closes, slow, idx)
+    std = _std(closes, fast, idx)
+    if fast_ma is None or slow_ma is None or std is None:
+        return 0
+
+    rsis = _rsi(closes, rsi_period)
+    r = rsis[idx]
+    if r is None or slow_ma == 0:
+        return 0
+
+    close = closes[idx]
+    trend = (fast_ma - slow_ma) / slow_ma
+    band = band_k * std
+
+    # Profit-biased: avoid low-trend chop, follow trends and give trades room.
+    if abs(trend) < trend_thresh:
+        if current_pos != 0:
+            return 0
+        return 0
+
+    if trend > 0:
+        if current_pos == 0:
+            if close > fast_ma + band or (close >= fast_ma and r >= exit_level):
+                return 1
+            return 0
+        if current_pos == 1:
+            if close < slow_ma or trend < 0:
+                return 0
+            return current_pos
+        if current_pos == -1:
+            return 0
+
+    if trend < 0:
+        if current_pos == 0:
+            if close < fast_ma - band or (close <= fast_ma and r <= exit_level):
+                return -1
+            return 0
+        if current_pos == -1:
+            if close > slow_ma or trend > 0:
+                return 0
+            return current_pos
+        if current_pos == 1:
+            return 0
+
+    return current_pos
+
+
 STRATEGIES: dict[str, dict[str, Any]] = {
     "ma_crossover": {
         "name": "MA Crossover",
@@ -250,6 +325,27 @@ STRATEGIES: dict[str, dict[str, Any]] = {
         "defaults": {"entry": 20, "exit": 10},
         "fn": strategy_donchian_breakout,
         "warmup": 60,
+    },
+    "adaptive_reversion": {
+        "name": "Adaptive Reversion",
+        "name_zh": "自适应回归",
+        "description": "Profit-biased regime filter: skip chop, follow trend breakouts and hold longer.",
+        "description_zh": "偏利润的自适应策略：过滤震荡行情，趋势突破顺势进场并持有更久。",
+        "defaults": {
+            "fast": 20,
+            "slow": 80,
+            "band_k": 1.5,
+            "trend_thresh": 0.006,
+            "rsi_period": 14,
+            "rsi_buy": 35,
+            "rsi_sell": 65,
+            "exit_level": 50,
+            "stop_loss_pct": 1.2,
+            "take_profit_pct": 2.5,
+            "max_hold_bars": 96,
+        },
+        "fn": strategy_adaptive_reversion,
+        "warmup": 100,
     },
 }
 
@@ -285,10 +381,23 @@ def backtest(
         lev = 50.0
 
     cost_rate = _cost_rate_from_bps(fee_bps) + _cost_rate_from_bps(slippage_bps)
+    try:
+        stop_loss_pct = float(merged_params.get("stop_loss_pct", 0.0))
+    except Exception:
+        stop_loss_pct = 0.0
+    try:
+        take_profit_pct = float(merged_params.get("take_profit_pct", 0.0))
+    except Exception:
+        take_profit_pct = 0.0
+    try:
+        max_hold_bars = int(merged_params.get("max_hold_bars", 0))
+    except Exception:
+        max_hold_bars = 0
 
     pos = 0
     entry_price = None
     entry_ts = None
+    entry_idx = None
     equity = 1.0
     equity_at_entry = 1.0
     equity_curve: list[float] = []
@@ -326,6 +435,25 @@ def backtest(
         next_open = candles[i + 1].open
         next_ts = candles[i + 1].ts_ms
 
+        force_exit = False
+        if pos != 0 and entry_price is not None:
+            close = candles[i].close
+            if stop_loss_pct > 0:
+                if pos == 1 and close <= entry_price * (1.0 - stop_loss_pct / 100.0):
+                    force_exit = True
+                if pos == -1 and close >= entry_price * (1.0 + stop_loss_pct / 100.0):
+                    force_exit = True
+            if take_profit_pct > 0:
+                if pos == 1 and close >= entry_price * (1.0 + take_profit_pct / 100.0):
+                    force_exit = True
+                if pos == -1 and close <= entry_price * (1.0 - take_profit_pct / 100.0):
+                    force_exit = True
+            if max_hold_bars > 0 and entry_idx is not None and (i - entry_idx) >= max_hold_bars:
+                force_exit = True
+
+        if force_exit:
+            desired = 0
+
         if desired == pos:
             continue
 
@@ -353,13 +481,15 @@ def backtest(
             pos = 0
             entry_price = None
             entry_ts = None
+            entry_idx = None
             equity_at_entry = equity
 
         # Open new position at next open.
-        if desired != 0 and next_open > 0:
+        if desired != 0 and next_open > 0 and not force_exit:
             pos = desired
             entry_price = float(next_open)
             entry_ts = int(next_ts)
+            entry_idx = i + 1
             equity_at_entry = equity
 
     total_return = (equity_curve[-1] - 1.0) if equity_curve else 0.0
