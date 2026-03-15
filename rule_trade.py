@@ -52,6 +52,38 @@ def _fetch_candles(exchange, symbol: str, timeframe: str, limit: int) -> list[Ca
     return candles
 
 
+def _get_proxies() -> dict:
+    proxy = (
+        os.getenv("HTTPS_PROXY")
+        or os.getenv("https_proxy")
+        or os.getenv("HTTP_PROXY")
+        or os.getenv("http_proxy")
+    )
+    if proxy:
+        return {"http": proxy, "https": proxy}
+    return {}
+
+
+def _build_exchange():
+    exchange = ccxt.okx(
+        {
+            "enableRateLimit": True,
+            "timeout": 30000,
+            "options": {"defaultType": settings.DEFAULT_TYPE},
+            "apiKey": os.getenv("OKX_API_KEY"),
+            "secret": os.getenv("OKX_SECRET"),
+            "password": os.getenv("OKX_PASSWORD"),
+        }
+    )
+    api_base = os.getenv("OKX_API_BASE")
+    if api_base:
+        exchange.urls["api"] = {"public": api_base, "private": api_base}
+    proxies = _get_proxies()
+    if proxies:
+        exchange.proxies = proxies
+    return exchange
+
+
 def _build_signal_data(signal: str, price: float, params: dict, reason: str) -> dict:
     sl_pct = float(params.get("stop_loss_pct") or 1.0)
     tp_pct = float(params.get("take_profit_pct") or 2.0)
@@ -99,14 +131,7 @@ def run(strategy_id: str, symbol: str, timeframe: str, amount: float, leverage: 
         "test_mode": settings.TRADE_TEST_MODE,
     }
 
-    exchange = ccxt.okx(
-        {
-            "options": {"defaultType": settings.DEFAULT_TYPE},
-            "apiKey": os.getenv("OKX_API_KEY"),
-            "secret": os.getenv("OKX_SECRET"),
-            "password": os.getenv("OKX_PASSWORD"),
-        }
-    )
+    exchange = _build_exchange()
 
     db_path = os.path.join(os.path.dirname(__file__), "trading_logs.db")
     common.init_db(db_path)
@@ -137,7 +162,16 @@ def run(strategy_id: str, symbol: str, timeframe: str, amount: float, leverage: 
         print(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 60)
 
-        candles = _fetch_candles(exchange, symbol, timeframe, limit=max(120, int(params.get("slow", 80)) + 10))
+        try:
+            candles = _fetch_candles(exchange, symbol, timeframe, limit=max(120, int(params.get("slow", 80)) + 10))
+        except ccxt.NetworkError as exc:
+            print(f"网络异常: {exc}")
+            time.sleep(30)
+            continue
+        except Exception as exc:
+            print(f"获取K线失败: {exc}")
+            time.sleep(30)
+            continue
         if len(candles) < 10:
             time.sleep(30)
             continue
