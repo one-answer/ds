@@ -114,6 +114,68 @@ def mysql_connect(cfg: dict):
     return pymysql.connect(**kwargs)
 
 
+def ensure_kline_triggers(conn, table: str = "okx_kline") -> None:
+    """
+    Ensure DB-side timestamps are Shanghai local time regardless of MySQL server/session time_zone.
+
+    We do this via triggers using UTC_TIMESTAMP()+8 hours so it doesn't depend on time zone tables.
+    """
+    trigger_insert = f"{table}_bi_shanghai_ts"
+    trigger_update = f"{table}_bu_shanghai_ts"
+
+    existing = set()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT trigger_name
+                FROM information_schema.triggers
+                WHERE trigger_schema = DATABASE()
+                  AND trigger_name IN (%s, %s)
+                """,
+                (trigger_insert, trigger_update),
+            )
+            existing = {str(r.get("trigger_name")) for r in (cur.fetchall() or []) if r.get("trigger_name")}
+    except Exception:
+        return
+
+    utc_plus_8 = "DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)"
+
+    if trigger_insert not in existing:
+        sql = (
+            f"CREATE TRIGGER `{trigger_insert}` BEFORE INSERT ON `{table}` "
+            f"FOR EACH ROW SET "
+            f"NEW.created_at = COALESCE(NEW.created_at, {utc_plus_8}), "
+            f"NEW.updated_at = COALESCE(NEW.updated_at, {utc_plus_8})"
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+            conn.commit()
+        except Exception as exc:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print(f"[warn] cannot create trigger {trigger_insert}: {exc}")
+
+    if trigger_update not in existing:
+        sql = (
+            f"CREATE TRIGGER `{trigger_update}` BEFORE UPDATE ON `{table}` "
+            f"FOR EACH ROW SET NEW.updated_at = {utc_plus_8}"
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+            conn.commit()
+        except Exception as exc:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print(f"[warn] cannot create trigger {trigger_update}: {exc}")
+
+
 def ensure_table(conn) -> None:
     sql = """
     CREATE TABLE IF NOT EXISTS okx_kline (
@@ -150,6 +212,8 @@ def ensure_table(conn) -> None:
                 "COMMENT 'Asia/Shanghai local time (UTC+8)'"
             )
             conn.commit()
+
+    ensure_kline_triggers(conn, table="okx_kline")
 
 
 def _ccxt_symbol_to_inst_id(symbol: str) -> str:
