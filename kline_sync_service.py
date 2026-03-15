@@ -114,12 +114,37 @@ def mysql_connect(cfg: dict):
     return pymysql.connect(**kwargs)
 
 
+def _is_tidb(conn) -> bool:
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT VERSION() AS v")
+            row = cur.fetchone() or {}
+        version_text = str(row.get("v", "")).lower()
+        return "tidb" in version_text
+    except Exception:
+        return False
+
+
+def ensure_session_timezone(conn, tz_offset: str = "+08:00") -> None:
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SET time_zone = %s", (tz_offset,))
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+
 def ensure_kline_triggers(conn, table: str = "okx_kline") -> None:
     """
     Ensure DB-side timestamps are Shanghai local time regardless of MySQL server/session time_zone.
 
     We do this via triggers using UTC_TIMESTAMP()+8 hours so it doesn't depend on time zone tables.
     """
+    if _is_tidb(conn):
+        return
     trigger_insert = f"{table}_bi_shanghai_ts"
     trigger_update = f"{table}_bu_shanghai_ts"
 
@@ -144,9 +169,10 @@ def ensure_kline_triggers(conn, table: str = "okx_kline") -> None:
     if trigger_insert not in existing:
         sql = (
             f"CREATE TRIGGER `{trigger_insert}` BEFORE INSERT ON `{table}` "
-            f"FOR EACH ROW SET "
-            f"NEW.created_at = COALESCE(NEW.created_at, {utc_plus_8}), "
-            f"NEW.updated_at = COALESCE(NEW.updated_at, {utc_plus_8})"
+            f"FOR EACH ROW BEGIN "
+            f"SET NEW.created_at = COALESCE(NEW.created_at, {utc_plus_8}); "
+            f"SET NEW.updated_at = COALESCE(NEW.updated_at, {utc_plus_8}); "
+            f"END"
         )
         try:
             with conn.cursor() as cur:
@@ -162,7 +188,9 @@ def ensure_kline_triggers(conn, table: str = "okx_kline") -> None:
     if trigger_update not in existing:
         sql = (
             f"CREATE TRIGGER `{trigger_update}` BEFORE UPDATE ON `{table}` "
-            f"FOR EACH ROW SET NEW.updated_at = {utc_plus_8}"
+            f"FOR EACH ROW BEGIN "
+            f"SET NEW.updated_at = {utc_plus_8}; "
+            f"END"
         )
         try:
             with conn.cursor() as cur:
@@ -198,6 +226,8 @@ def ensure_table(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(sql)
     conn.commit()
+
+    ensure_session_timezone(conn, tz_offset="+08:00")
 
     # Backward compatible: if an older table still uses `open_time_utc`, rename it in-place.
     with conn.cursor() as cur:
