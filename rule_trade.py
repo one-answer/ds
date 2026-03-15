@@ -140,6 +140,8 @@ def run(strategy_id: str, symbol: str, timeframe: str, amount: float, leverage: 
         return common.save_trade_log(db_path, trade_config, *args, **kwargs)
 
     def get_current_position():
+        if trade_config.get("test_mode"):
+            return None
         return common.get_current_position(exchange, symbol, trade_config["leverage"])
 
     try:

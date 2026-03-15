@@ -2144,6 +2144,9 @@
     const body = await response.json();
     showToast(body.message || `${action} completed`);
     await render();
+    if (action === "start") {
+      await loadLogs(name);
+    }
   }
 
   async function saveStrategyConfig(name, amount, leverage) {
