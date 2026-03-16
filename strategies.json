@@ -20,8 +20,5 @@
     ],
     "proc_match": "deepseek_trade.py --strategy xrp",
     "log": "app_xrp.log"
-  },
-  "bt_adaptive_reversion_btc_usdt_usdt": {
-    "timeframe": "1m"
   }
 }

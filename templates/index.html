@@ -1802,11 +1802,12 @@
       const strategies = Array.isArray(body.strategies) ? body.strategies : [];
       backtestStrategyMeta = {};
       btStrategy.innerHTML = strategies
-        .map((s) => {
+        .map((s, idx) => {
           const id = String(s.id || "");
           backtestStrategyMeta[id] = s;
           const name = getLang() === "zh" && s.name_zh ? String(s.name_zh) : String(s.name || id);
-          return `<option value="${id}">${name}</option>`;
+          const num = idx + 1;
+          return `<option value="${id}">${num}. ${name}</option>`;
         })
         .join("");
 
