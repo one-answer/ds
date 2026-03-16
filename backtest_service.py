@@ -298,6 +298,51 @@ def strategy_adaptive_reversion(idx: int, candles: list[Candle], params: dict[st
     return current_pos
 
 
+def strategy_conservative_trend(idx: int, candles: list[Candle], params: dict[str, Any], current_pos: int) -> int:
+    """Long-only trend following with strong filtering and fast exit.
+
+    Design goals:
+    - Prefer staying flat over taking marginal trades.
+    - Only join strong, established uptrends.
+    - Cut losers quickly; let winners run but lock profits on pullback.
+    """
+    closes = [c.close for c in candles]
+    fast = int(params.get("fast", 20))
+    slow = int(params.get("slow", 80))
+    if slow <= fast:
+        slow = fast + 1
+    trend_min = float(params.get("trend_min", 0.01))
+
+    fast_ma = _sma(closes, fast, idx)
+    slow_ma = _sma(closes, slow, idx)
+    if fast_ma is None or slow_ma is None or slow_ma <= 0:
+        return 0
+
+    close = closes[idx]
+    trend = (fast_ma - slow_ma) / slow_ma
+
+    # Only trade strong uptrends; never short.
+    if trend <= 0 or trend < trend_min:
+        # In marginal / downtrend regime: immediately flatten.
+        return 0
+
+    # Entry: require price above both MAs to avoid late entries in chop.
+    if current_pos == 0:
+        if close > fast_ma and close > slow_ma:
+            return 1
+        return 0
+
+    # Manage existing long:
+    if current_pos == 1:
+        # If price falls back below fast MA or trend decays too much, exit.
+        if close < fast_ma or trend < trend_min * 0.5:
+            return 0
+        return 1
+
+    # For any other state, stay flat.
+    return 0
+
+
 STRATEGIES: dict[str, dict[str, Any]] = {
     "ma_crossover": {
         "name": "MA Crossover",
@@ -328,6 +373,90 @@ STRATEGIES: dict[str, dict[str, Any]] = {
         "defaults": {"fast": 10, "slow": 30},
         "fn": strategy_ma_crossover,
         "warmup": 60,
+    },
+    "conservative_trend": {
+        "name": "Conservative Trend",
+        "name_zh": "稳健趋势",
+        "description": "Only trade when trend is clear; tight stop and take-profit. Prefer no trade over loss.",
+        "description_zh": "仅在趋势明确时入场，严格止损止盈与持仓时间；宁可不交易也不亏钱。",
+        "param_labels": {
+            "fast": "Fast MA",
+            "slow": "Slow MA",
+            "trend_min": "Min trend strength",
+            "stop_loss_pct": "Stop loss %",
+            "take_profit_pct": "Take profit %",
+            "max_hold_bars": "Max hold bars",
+        },
+        "param_labels_zh": {
+            "fast": "短期均线",
+            "slow": "长期均线",
+            "trend_min": "最小趋势强度",
+            "stop_loss_pct": "止损 (%)",
+            "take_profit_pct": "止盈 (%)",
+            "max_hold_bars": "最长持仓 K 数",
+        },
+        "param_help": {
+            "fast": "Short MA window for trend direction.",
+            "slow": "Long MA; price must stay on correct side to hold.",
+            "trend_min": "Only enter when |fast_ma - slow_ma|/slow_ma >= this.",
+            "stop_loss_pct": "Exit when loss reaches this %.",
+            "take_profit_pct": "Exit when profit reaches this %.",
+            "max_hold_bars": "Max bars to hold (0 = no limit).",
+        },
+        "param_help_zh": {
+            "fast": "短期均线，用于判断趋势方向。",
+            "slow": "长期均线；价格需持续在正确一侧才持仓。",
+            "trend_min": "仅当 |快均线-慢均线|/慢均线 不小于该值时才入场。",
+            "stop_loss_pct": "亏损达到该百分比时平仓。",
+            "take_profit_pct": "盈利达到该百分比时平仓。",
+            "max_hold_bars": "最长持仓K线数（0 表示不限制）。",
+        },
+        "param_range": {
+            "fast": [10, 50],
+            "slow": [40, 200],
+            "trend_min": [0.002, 0.02],
+            "stop_loss_pct": [0.3, 3.0],
+            "take_profit_pct": [0.5, 5.0],
+            "max_hold_bars": [24, 400],
+        },
+        "param_presets": {
+            "conservative": {
+                "fast": 25, "slow": 100, "trend_min": 0.008,
+                "stop_loss_pct": 0.6, "take_profit_pct": 1.2, "max_hold_bars": 72,
+            },
+            "balanced": {
+                "fast": 20, "slow": 80, "trend_min": 0.006,
+                "stop_loss_pct": 0.8, "take_profit_pct": 1.5, "max_hold_bars": 96,
+            },
+            "aggressive": {
+                "fast": 15, "slow": 60, "trend_min": 0.005,
+                "stop_loss_pct": 1.0, "take_profit_pct": 2.0, "max_hold_bars": 120,
+            },
+        },
+        "param_presets_zh": {
+            "conservative": {"name": "稳健", "params": {
+                "fast": 25, "slow": 100, "trend_min": 0.008,
+                "stop_loss_pct": 0.6, "take_profit_pct": 1.2, "max_hold_bars": 72,
+            }},
+            "balanced": {"name": "均衡", "params": {
+                "fast": 20, "slow": 80, "trend_min": 0.006,
+                "stop_loss_pct": 0.8, "take_profit_pct": 1.5, "max_hold_bars": 96,
+            }},
+            "aggressive": {"name": "激进", "params": {
+                "fast": 15, "slow": 60, "trend_min": 0.005,
+                "stop_loss_pct": 0.9, "take_profit_pct": 2.2, "max_hold_bars": 120,
+            }},
+        },
+        "defaults": {
+            "fast": 20,
+            "slow": 80,
+            "trend_min": 0.01,
+            "stop_loss_pct": 0.7,
+            "take_profit_pct": 1.8,
+            "max_hold_bars": 96,
+        },
+        "fn": strategy_conservative_trend,
+        "warmup": 100,
     },
 }
 
